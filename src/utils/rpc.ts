@@ -231,7 +231,9 @@ export class RpcClient {
   private wsConnectPromise: Promise<void> | null = null
 
   constructor(options: RpcClientOptions = {}) {
-    const apiBase = import.meta.env.VITE_API_BASE || ''
+    // Komari exposes RPC2 below /api by default. Keep the runtime fallback
+    // aligned with the REST client so a packaged theme works without .env.
+    const apiBase = import.meta.env.VITE_API_BASE || '/api'
     this.baseUrl = options.baseUrl || `${apiBase}/rpc2`
     this.timeout = options.timeout || 30000
     this.useWebSocket = options.useWebSocket || false

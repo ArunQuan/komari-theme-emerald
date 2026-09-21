@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.29.2 - 2026-09-21
+
+### Fixed
+
+- Corrected the default RPC endpoint to `/api/rpc2` so packaged themes can load public node data without a local `.env` file.
+
 ## v1.29.1 - 2026-09-21
 
 ### Added
