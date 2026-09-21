@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge'
 import { CardX } from '@/components/ui/card-x'
 import { DataTooltip } from '@/components/ui/data-tooltip'
 import { ProgressThin } from '@/components/ui/progress-thin'
-import { useNodePingDisplay } from '@/composables/useNodePingDisplay'
 import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatRelativeTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
@@ -18,11 +17,20 @@ const props = defineProps<{ node: NodeData }>()
 
 const emit = defineEmits<{ click: [] }>()
 
+type NodePing = NonNullable<NodeData['ping']>[string]
+
+const networkProviders = [
+  { label: '电信', keywords: ['电信', 'telecom', 'chinatelecom', 'china telecom'] },
+  { label: '联通', keywords: ['联通', 'unicom', 'chinaunicom', 'china unicom'] },
+  { label: '移动', keywords: ['移动', 'mobile', 'chinamobile', 'china mobile'] },
+] as const
+
 const appStore = useAppStore()
 
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
 const formatBytesPerSecond = (bytes: number) => formatBytesPerSecondWithConfig(bytes, appStore.byteDecimals)
 const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, 'hour')
+const formatOnlineTime = (seconds: number) => `在线${formatUptimeWithFormat(seconds, 'day').replaceAll(' ', '')}`
 const offlineTime = computed(() => formatDateTime(props.node.time))
 
 const cpuStatus = computed(() => getStatus(props.node.cpu ?? 0))
@@ -30,15 +38,6 @@ const memPercentage = computed(() => (props.node.ram ?? 0) / (props.node.mem_tot
 const memStatus = computed(() => getStatus(memPercentage.value))
 const diskPercentage = computed(() => (props.node.disk ?? 0) / (props.node.disk_total || 1) * 100)
 const diskStatus = computed(() => getStatus(diskPercentage.value))
-
-const {
-  latencyRenderBars,
-  lossRenderBars,
-  latencyDisplay,
-  lossDisplay,
-  latencyPanelTooltip,
-  lossPanelTooltip,
-} = useNodePingDisplay(() => props.node.uuid)
 
 function showTrafficProgress(node: NodeData): boolean {
   return node.traffic_limit > 0
@@ -79,11 +78,80 @@ const trafficUsed = computed(() => {
 })
 
 const priceTags = computed(() => buildPriceTags(props.node, appStore.lang))
+const remainingText = computed(() => priceTags.value[0]?.text ?? '剩余 -')
+const priceText = computed(() => priceTags.value[1]?.text ?? '')
 
 const isPinned = computed(() => appStore.isNodePinned(props.node.uuid))
 const offlineRelative = computed(() => formatRelativeTime(props.node.time))
 
 const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
+
+const providerPings = computed(() => {
+  const pingEntries = Object.values(props.node.ping ?? {})
+
+  return networkProviders.map((provider) => {
+    const stats = pingEntries.find((ping) => {
+      const name = String(ping.name ?? '').toLowerCase()
+      return provider.keywords.some(keyword => name.includes(keyword))
+    }) ?? null
+
+    return { ...provider, stats }
+  })
+})
+
+const hasProviderPing = computed(() => providerPings.value.some(provider => provider.stats !== null))
+
+function formatProviderLatency(ping: NodePing | null): string {
+  if (!ping)
+    return '-'
+
+  const latency = Number.isFinite(ping.avg) && ping.avg >= 0 ? ping.avg : ping.latest
+  if (!Number.isFinite(latency) || latency < 0)
+    return '丢包'
+  return `${Math.round(latency)} ms`
+}
+
+function formatProviderLoss(ping: NodePing | null): string {
+  if (!ping || !Number.isFinite(ping.loss))
+    return '-'
+  return `${ping.loss.toFixed(1)}%`
+}
+
+function getProviderPingBars(provider: typeof providerPings.value[number], metric: 'latency' | 'loss') {
+  const ping = provider.stats
+  const value = metric === 'latency'
+    ? ping && Number.isFinite(ping.avg) && ping.avg >= 0 ? ping.avg : null
+    : ping && Number.isFinite(ping.loss) ? ping.loss : null
+  const className = value === null
+    ? 'bg-muted-foreground/10'
+    : metric === 'latency'
+      ? value <= 60
+        ? 'bg-emerald-600/90'
+        : value <= 100
+          ? 'bg-green-400/80'
+          : value <= 160
+            ? 'bg-lime-400/80'
+            : value <= 200
+              ? 'bg-yellow-400/80'
+              : 'bg-rose-500/80'
+      : value <= 1
+        ? 'bg-emerald-600/90'
+        : value <= 3
+          ? 'bg-green-400/90'
+          : value <= 6
+            ? 'bg-lime-400/90'
+            : value <= 9
+              ? 'bg-yellow-400/90'
+              : 'bg-rose-500/80'
+
+  return Array.from({ length: 12 }, (_, index) => ({
+    key: `${provider.label}-${metric}-${index}`,
+    className,
+    tooltip: metric === 'latency'
+      ? `${provider.label} ${formatProviderLatency(ping)}`
+      : `${provider.label} ${formatProviderLoss(ping)}`,
+  }))
+}
 
 const isCompact = computed(() => appStore.cardDensity === 'compact')
 
@@ -142,8 +210,16 @@ function hasRegion(region: string | null | undefined): boolean {
     </template>
 
     <template #default>
-      <div class="flex flex-col gap-3 max-md:gap-2" :class="isCompact && 'md:gap-2'">
-        <div class="gap-3 max-md:gap-x-3 max-md:gap-y-2 grid grid-cols-2" :class="isCompact && 'md:gap-x-3 md:gap-y-2'">
+      <div class="flex flex-col gap-1.5">
+        <div
+          class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-[11px] text-muted-foreground leading-none"
+          :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
+        >
+          <span v-if="appStore.showNodeUptime" class="inline-flex max-w-full shrink-0 truncate rounded-sm bg-slate-500/[0.08] pl-0 pr-1 py-0.5">{{ formatOnlineTime(props.node.uptime ?? 0) }}</span>
+          <span v-if="priceText" class="inline-flex max-w-full shrink-0 truncate rounded-sm bg-slate-500/[0.08] pl-0 pr-1 py-0.5">{{ priceText }}</span>
+          <span class="inline-flex max-w-full shrink-0 truncate rounded-sm bg-slate-500/[0.08] pl-0 pr-1 py-0.5">{{ remainingText }}</span>
+        </div>
+        <div class="gap-x-2 gap-y-1.5 grid grid-cols-2">
           <!-- <div class="flex flex-col gap-1 col-span-2">
                 <div class="flex gap-2 items-center">
                   <img :src="getOSImage(props.node.os)" :alt="getOSName(props.node.os)" class="size-4">
@@ -213,7 +289,7 @@ function hasRegion(region: string | null | undefined): boolean {
             </div>
           </div>
         </div>
-        <div class="gap-1.5 grid grid-cols-6 relative">
+        <div class="gap-2 grid grid-cols-6 relative">
           <div
             v-if="!props.node.online"
             class="absolute inset-0 flex flex-col gap-1 items-center justify-center z-1 text-center" aria-hidden="true"
@@ -226,8 +302,8 @@ function hasRegion(region: string | null | undefined): boolean {
             </div>
           </div>
           <div
-            class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5 col-span-2"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
+            class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '', appStore.showNodeConnections ? 'col-span-2' : 'col-span-3']"
           >
             <div class="text-[11px] flex flex-col">
               <div class="text-green-600 flex flex-row items-center gap-1">
@@ -242,7 +318,7 @@ function hasRegion(region: string | null | undefined): boolean {
           </div>
           <div
             class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
-            :class="[appStore.showNodeConnections ? 'col-span-2' : 'col-span-4', !props.node.online ? 'blur-xs opacity-60' : '']"
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '', appStore.showNodeConnections ? 'col-span-2' : 'col-span-3']"
           >
             <div class="text-[11px] text-muted-foreground flex flex-col">
               <div class="flex flex-row items-center gap-1">
@@ -257,7 +333,7 @@ function hasRegion(region: string | null | undefined): boolean {
           </div>
           <div
             v-if="appStore.showNodeConnections"
-            class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5 col-span-2"
+            class="col-span-2 flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
             :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
           >
             <div class="text-[11px] text-muted-foreground flex flex-col">
@@ -271,54 +347,38 @@ function hasRegion(region: string | null | undefined): boolean {
               </div>
             </div>
           </div>
-          <div
-            v-if="priceTags.length" class="col-span-6 flex flex-row gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5 justify-center"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '', appStore.showNodeUptime ? 'max-md:col-span-3' : '']"
-          >
-            <div class="text-[11px] text-muted-foreground flex flex-row gap-3 max-md:gap-1.5 max-md:flex-wrap max-md:justify-center overflow-hidden">
-              <span
-                v-for="(tag, index) in priceTags" :key="index" class="whitespace-nowrap"
-                :class="tag.tone === 'danger' ? 'text-red-500 font-medium' : tag.tone === 'warn' ? 'text-amber-500' : ''"
+          <template v-if="hasProviderPing">
+            <div
+              v-for="provider in providerPings" :key="provider.label"
+              class="col-span-6 grid grid-cols-2 gap-1.5"
+              :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
+            >
+              <div
+                class="group/panel relative col-span-1 flex flex-col gap-1 p-1 h-8 rounded-sm bg-slate-500/5"
+                :title="`延迟 · ${provider.label}`"
               >
-                {{ tag.text }}
-              </span>
+                <div class="flex items-center justify-between gap-2 text-[11px] leading-none relative">
+                  <span class="text-muted-foreground">{{ provider.label }}</span>
+                  <span class="font-medium text-foreground/85">{{ formatProviderLatency(provider.stats) }}</span>
+                </div>
+                <div class="h-full min-h-0 opacity-80 group-hover/panel:opacity-100">
+                  <PingBars :bars="getProviderPingBars(provider, 'latency')" />
+                </div>
+              </div>
+              <div
+                class="group/panel relative col-span-1 flex flex-col gap-1 p-1 h-8 rounded-sm bg-slate-500/5"
+                :title="`丢包 · ${provider.label}`"
+              >
+                <div class="flex items-center justify-between gap-2 text-[11px] leading-none">
+                  <span class="text-muted-foreground">丢包</span>
+                  <span class="font-medium text-foreground/85">{{ formatProviderLoss(provider.stats) }}</span>
+                </div>
+                <div class="h-full min-h-0 opacity-80 group-hover/panel:opacity-100">
+                  <PingBars :bars="getProviderPingBars(provider, 'loss')" />
+                </div>
+              </div>
             </div>
-          </div>
-          <!-- 在线时长（移动端与价格并排一行，省一行高度） -->
-          <div
-            v-if="appStore.showNodeUptime"
-            class="col-span-6 flex flex-row gap-2 items-center p-1 rounded-sm bg-slate-500/5 justify-center text-[11px] text-muted-foreground"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '', priceTags.length ? 'max-md:col-span-3' : '']"
-          >
-            <Icon icon="tabler:clock-hour-4" width="12" height="12" />
-            <span>{{ formatUptime(props.node.uptime ?? 0) }}</span>
-          </div>
-          <!-- 延迟 -->
-          <div
-            class="group/panel relative col-span-3 flex flex-col gap-1.5 p-1.5 h-10 rounded-sm bg-slate-500/5"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '']" :title="latencyPanelTooltip"
-          >
-            <div class="flex items-center justify-between gap-2 text-[11px] leading-none relative">
-              <span class="text-muted-foreground">延迟</span>
-              <span class="font-medium text-foreground/85">{{ latencyDisplay }}</span>
-            </div>
-            <div class="h-full min-h-0 opacity-80 group-hover/panel:opacity-100">
-              <PingBars :bars="latencyRenderBars" />
-            </div>
-          </div>
-          <!-- 丢包 -->
-          <div
-            class="group/panel relative col-span-3 flex flex-col gap-1.5 p-1.5 h-10 rounded-sm bg-slate-500/5"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '']" :title="lossPanelTooltip"
-          >
-            <div class="flex items-center justify-between gap-2 text-[11px] leading-none">
-              <span class="text-muted-foreground">丢包</span>
-              <span class="font-medium text-foreground/85">{{ lossDisplay }}</span>
-            </div>
-            <div class="h-full min-h-0 opacity-80 group-hover/panel:opacity-100">
-              <PingBars :bars="lossRenderBars" />
-            </div>
-          </div>
+          </template>
         </div>
         <div v-if="customTags.length > 0" class="flex shrink-0 flex-wrap gap-1 items-center">
           <Badge

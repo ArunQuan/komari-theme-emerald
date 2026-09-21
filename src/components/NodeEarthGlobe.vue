@@ -589,7 +589,7 @@ function formatRate(bytesPerSec: number): string {
     />
 
     <template v-for="cluster in regionClusters" :key="cluster.code">
-      <Teleport :to="getAnchorEl(cluster.code) ?? containerRef!" :disabled="!getAnchorEl(cluster.code)">
+      <Teleport v-if="getAnchorEl(cluster.code)" :to="getAnchorEl(cluster.code)!">
         <div
           class="absolute -top-7.5 left-0 transition-[opacity,filter] duration-500 rounded-lg backdrop-blur-xl backdrop-saturate-150"
           :style="{

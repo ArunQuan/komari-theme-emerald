@@ -1,4 +1,4 @@
-import type { Client, NodeStatus } from '@/utils/rpc'
+import type { Client, NodeStatus, NodeStatusPing } from '@/utils/rpc'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { parseNodeGroups } from '@/utils/groupHelper'
@@ -60,6 +60,8 @@ export interface NodeData {
   connections: number
   connections_udp: number
   uptime: number
+  /** 各 Ping 任务的最新探测汇总，键为 task_id 字符串 */
+  ping?: Record<string, NodeStatusPing>
 }
 
 /** WebSocket 连接状态 */
@@ -86,6 +88,7 @@ interface StatusData {
   connections: number
   connections_udp: number
   uptime: number
+  ping?: Record<string, NodeStatusPing>
 }
 
 /** Client 中与 NodeData 同名同型的字段（更新节点基本信息时按字段同步） */
@@ -283,6 +286,8 @@ const useNodesStore = defineStore('nodes', () => {
       node.connections_udp = status.connections_udp
     if (node.uptime !== status.uptime)
       node.uptime = status.uptime
+    if (status.ping && node.ping !== status.ping)
+      node.ping = status.ping
   }
 
   function syncClientField<K extends ClientSyncField>(node: NodeData, client: Client, key: K): void {

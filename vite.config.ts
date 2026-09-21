@@ -1,3 +1,4 @@
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import { execSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -80,6 +81,167 @@ function komariThemeZip(): Plugin {
   }
 }
 
+interface LocalSnapshot {
+  public_info?: Record<string, unknown>
+  public_settings?: Record<string, unknown>
+  backend_version?: Record<string, unknown>
+  nodes?: Record<string, unknown>
+  statuses?: Record<string, unknown>
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    let body = ''
+    req.setEncoding('utf8')
+    req.on('data', chunk => body += chunk)
+    req.on('end', () => {
+      try {
+        const value: unknown = JSON.parse(body)
+        if (!isRecord(value)) {
+          reject(new Error('RPC body must be a JSON object'))
+          return
+        }
+        resolve(value)
+      }
+      catch (error) {
+        reject(error)
+      }
+    })
+    req.on('error', reject)
+  })
+}
+
+function sendJson(res: ServerResponse, payload: unknown, statusCode = 200): void {
+  res.statusCode = statusCode
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.end(JSON.stringify(payload))
+}
+
+/**
+ * Serve a read-only copy of the live probe data during local development.
+ * This is intentionally a Vite serve-only plugin and is never included in the
+ * production theme bundle.
+ */
+function localSnapshotApi(): Plugin {
+  return {
+    name: 'komari-local-snapshot-api',
+    apply: 'serve',
+    configureServer(server) {
+      const snapshotPath = resolve(__dirname, '..', 'komari-live-dedirock-us-20260921', 'data', 'current-public-snapshot.json')
+      if (!fs.existsSync(snapshotPath)) {
+        console.warn(`[komari-local-snapshot-api] Snapshot not found: ${snapshotPath}`)
+        return
+      }
+
+      let snapshot: LocalSnapshot
+      try {
+        snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) as LocalSnapshot
+      }
+      catch (error) {
+        console.warn('[komari-local-snapshot-api] Failed to read snapshot:', error)
+        return
+      }
+
+      const publicSettings = snapshot.public_settings ?? snapshot.public_info ?? {}
+      const publicThemeSettings = isRecord(publicSettings.theme_settings) ? publicSettings.theme_settings : {}
+      const localPublicSettings = {
+        ...publicSettings,
+        // The snapshot is static, so local preview uses HTTP polling instead of
+        // opening a WebSocket that the Vite middleware does not emulate.
+        theme_settings: { ...publicThemeSettings, rpcTransportMode: 'http' },
+      }
+
+      server.middlewares.use(async (req, res, next) => {
+        const pathname = new URL(req.url ?? '/', 'http://localhost').pathname
+
+        if (pathname === '/api/rpc2' && req.method === 'POST') {
+          try {
+            const request = await readJsonBody(req)
+            const id = request.id ?? null
+            let result: unknown
+
+            switch (request.method) {
+              case 'rpc.ping':
+                result = 'pong'
+                break
+              case 'rpc.getMethods':
+                result = [
+                  'rpc.ping',
+                  'rpc.getMethods',
+                  'common:getPublicInfo',
+                  'common:getNodes',
+                  'common:getNodesLatestStatus',
+                  'common:getNodeRecentStatus',
+                  'common:getRecords',
+                ]
+                break
+              case 'common:getPublicInfo':
+                result = snapshot.public_info ?? localPublicSettings
+                break
+              case 'common:getNodes':
+                result = snapshot.nodes ?? {}
+                break
+              case 'common:getNodesLatestStatus':
+                result = snapshot.statuses ?? {}
+                break
+              case 'common:getNodeRecentStatus':
+                result = { count: 0, records: [] }
+                break
+              case 'common:getRecords':
+                result = { records: [] }
+                break
+              default:
+                sendJson(res, {
+                  jsonrpc: '2.0',
+                  error: { code: -32601, message: 'Method not found in local snapshot' },
+                  id,
+                }, 404)
+                return
+            }
+
+            sendJson(res, { jsonrpc: '2.0', result, id })
+          }
+          catch (error) {
+            sendJson(res, {
+              jsonrpc: '2.0',
+              error: { code: -32600, message: error instanceof Error ? error.message : 'Invalid RPC request' },
+              id: null,
+            }, 400)
+          }
+          return
+        }
+
+        if (pathname === '/api/public' && req.method === 'GET') {
+          sendJson(res, { status: 'success', message: '', data: localPublicSettings })
+          return
+        }
+
+        if (pathname === '/api/me' && req.method === 'GET') {
+          sendJson(res, { logged_in: false, username: 'Guest' })
+          return
+        }
+
+        if (pathname === '/api/version' && req.method === 'GET') {
+          sendJson(res, {
+            status: 'success',
+            message: '',
+            data: snapshot.backend_version ?? { version: 'local-snapshot', hash: 'local-snapshot' },
+          })
+          return
+        }
+
+        next()
+      })
+
+      console.info(`[komari-local-snapshot-api] Serving ${Object.keys(snapshot.nodes ?? {}).length} live nodes from ${snapshotPath}`)
+    },
+  }
+}
+
 const packageJson = require('./package.json')
 
 export default defineConfig({
@@ -88,6 +250,7 @@ export default defineConfig({
     __BUILD_GIT_HASH__: JSON.stringify(getCommitHash()),
   },
   plugins: [
+    localSnapshotApi(),
     vue(),
     vueDevTools(),
     tailwindcss(),
