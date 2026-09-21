@@ -1,8 +1,8 @@
-<h3 align="center"> Komari Emerald </h3>
+<h3 align="center"> Komari Emerald Custom </h3>
 <p align="center">
 基于 Vue 3 + Vite + reka-ui + Tailwind CSS v4 构建的 Komari Monitor 主题
 <br>
-ArunQuan 维护的 Emerald 定制版本
+ArunQuan 维护的 Komari Emerald 定制版本
 </p>
 
 ![preview](/docs/preview.png)
@@ -16,7 +16,7 @@ ArunQuan 维护的 Emerald 定制版本
 
 ## 当前版本
 
-当前发布版本为 `v1.29.2`，在保留 Emerald 原有视觉风格和紧凑布局的基础上，补充了以下内容：
+当前发布版本为 `v0.2.0`，在保留 Emerald 原有视觉风格和紧凑布局的基础上，补充了以下内容：
 
 - 电信、联通、移动分别匹配对应的 Ping 延迟和丢包数据
 - 运营商 Ping 展示支持历史趋势，色块保持原版椭圆竖条样式

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.0 - 2026-09-21
+
+### Changed
+
+- Renamed the theme to `Komari Emerald Custom`.
+- Changed the theme short identifier to `KomariEmeraldCustom` to avoid collisions with the original Emerald theme.
+- Reset the theme version to `0.2.0`.
+
 ## v1.29.2 - 2026-09-21
 
 ### Fixed
