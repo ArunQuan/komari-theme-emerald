@@ -43,11 +43,12 @@ interface SharedPingRecordsEntry {
 }
 
 const HISTORY_BUCKET_COUNT = 20
-const CACHE_VERSION = 6
+const CACHE_VERSION = 7
 const CACHE_KEY_PREFIX = 'komari-theme-emerald:node-ping-stats'
 const FULL_LOSS_EPSILON = 1e-6
 const PING_RECORD_REFRESH_INTERVAL_MS = 60_000
 const sharedPingRecordsCache = new Map<number, SharedPingRecordsEntry>()
+type TaskIdFilter = number | null | undefined
 
 interface TaskRecordSummary {
   total: number
@@ -89,18 +90,19 @@ function summarizeTaskRecords(records: PingRecord[]): Map<number, TaskRecordSumm
   return summaries
 }
 
-function getIncludedTaskIds(records: PingRecord[]): Set<number> {
+function getIncludedTaskIds(records: PingRecord[], includeAllLossTasks = false): Set<number> {
   const recordSummaries = summarizeTaskRecords(records)
 
   return new Set(
     [...recordSummaries.entries()]
-      .filter(([, summary]) => summary.total > 0 && summary.success > 0)
+      .filter(([, summary]) => summary.total > 0 && (includeAllLossTasks || summary.success > 0))
       .map(([taskId]) => taskId),
   )
 }
 
-function getCacheKey(uuid: string, hours: number): string {
-  return `${CACHE_KEY_PREFIX}:${uuid}:${hours}`
+function getCacheKey(uuid: string, hours: number, taskId: TaskIdFilter): string {
+  const taskKey = taskId === undefined ? 'all' : taskId === null ? 'none' : taskId
+  return `${CACHE_KEY_PREFIX}:${uuid}:${hours}:${taskKey}`
 }
 
 function isValidHistoryPoint(value: unknown): value is NodePingHistoryPoint {
@@ -129,12 +131,12 @@ function isValidStatsState(value: unknown): value is NodePingStatsState {
     && state.history.every(isValidHistoryPoint)
 }
 
-function readStatsCache(uuid: string, hours: number): NodePingStatsState | null {
+function readStatsCache(uuid: string, hours: number, taskId: TaskIdFilter): NodePingStatsState | null {
   if (typeof window === 'undefined')
     return null
 
   try {
-    const raw = window.localStorage.getItem(getCacheKey(uuid, hours))
+    const raw = window.localStorage.getItem(getCacheKey(uuid, hours, taskId))
     if (!raw)
       return null
 
@@ -149,13 +151,13 @@ function readStatsCache(uuid: string, hours: number): NodePingStatsState | null 
   }
 }
 
-function writeStatsCache(uuid: string, hours: number, value: NodePingStatsState): void {
+function writeStatsCache(uuid: string, hours: number, taskId: TaskIdFilter, value: NodePingStatsState): void {
   if (typeof window === 'undefined')
     return
 
   try {
     window.localStorage.setItem(
-      getCacheKey(uuid, hours),
+      getCacheKey(uuid, hours, taskId),
       JSON.stringify({
         version: CACHE_VERSION,
         updatedAt: new Date().toISOString(),
@@ -367,8 +369,8 @@ function getPercentile(values: number[], percentile: number): number | null {
   return lowerValue + (upperValue - lowerValue) * (position - lowerIndex)
 }
 
-function buildStats(records: PingRecord[]): NodePingStatsState {
-  const includedTaskIds = getIncludedTaskIds(records)
+function buildStats(records: PingRecord[], includeAllLossTasks = false): NodePingStatsState {
+  const includedTaskIds = getIncludedTaskIds(records, includeAllLossTasks)
 
   if (!includedTaskIds.size)
     return createEmptyStats()
@@ -433,6 +435,8 @@ export function useNodePingStats(
   options?: {
     hours?: MaybeRefOrGetter<number>
     enabled?: MaybeRefOrGetter<boolean>
+    /** Explicit null disables this task view; undefined keeps the all-task view. */
+    taskId?: MaybeRefOrGetter<number | null | undefined>
   },
 ) {
   const loading = ref(false)
@@ -442,6 +446,7 @@ export function useNodePingStats(
     uuid: toValue(uuid),
     hours: Math.max(1, Math.floor(toValue(options?.hours) ?? 24)),
     enabled: toValue(options?.enabled) ?? true,
+    taskId: toValue(options?.taskId),
   }))
 
   let activeHours: number | null = null
@@ -468,8 +473,8 @@ export function useNodePingStats(
 
   // stats 由共享 getRecords 的近期样本派生，不将结果视为完整的 hours 时段数据。
   const stats = computed<NodePingStatsState>(() => {
-    const { uuid: nodeUuid, hours, enabled } = resolved.value
-    if (!enabled || !nodeUuid.trim())
+    const { uuid: nodeUuid, hours, enabled, taskId } = resolved.value
+    if (!enabled || !nodeUuid.trim() || taskId === null)
       return createEmptyStats()
 
     // 通过 getSharedPingRecordsEntry 读取（不存在则创建），确保 computed 始终对
@@ -477,10 +482,15 @@ export function useNodePingStats(
     const entry = getSharedPingRecordsEntry(hours)
     const state = entry.data.value
     if (!state)
-      return readStatsCache(nodeUuid, hours) ?? createEmptyStats()
+      return readStatsCache(nodeUuid, hours, taskId) ?? createEmptyStats()
 
     const records = state.recordsByClient.get(nodeUuid) ?? []
-    return records.length ? buildStats(records) : createEmptyStats()
+    const filteredRecords = taskId === undefined
+      ? records
+      : records.filter(record => record.task_id === taskId)
+    return filteredRecords.length
+      ? buildStats(filteredRecords, taskId !== undefined)
+      : readStatsCache(nodeUuid, hours, taskId) ?? createEmptyStats()
   })
 
   // 副作用：按需触发首次共享加载并维护 loading/error，不再命令式写入 stats。
@@ -492,8 +502,8 @@ export function useNodePingStats(
         cancelled = true
       })
 
-      const { uuid: nodeUuid, hours, enabled } = next
-      if (!enabled || !nodeUuid.trim()) {
+      const { uuid: nodeUuid, hours, enabled, taskId } = next
+      if (!enabled || !nodeUuid.trim() || taskId === null) {
         syncSharedRecordsSubscription(null)
         loading.value = false
         error.value = null
@@ -532,8 +542,8 @@ export function useNodePingStats(
 
   // 共享记录会定时刷新，节流回写 localStorage，避免多节点同时重算时密集写盘。
   const persistStats = useThrottleFn(
-    (nodeUuid: string, hours: number, value: NodePingStatsState) => {
-      writeStatsCache(nodeUuid, hours, value)
+    (nodeUuid: string, hours: number, taskId: TaskIdFilter, value: NodePingStatsState) => {
+      writeStatsCache(nodeUuid, hours, taskId, value)
     },
     30_000,
     true,
@@ -543,9 +553,9 @@ export function useNodePingStats(
   watch(stats, (value) => {
     if (!value.hasData)
       return
-    const { uuid: nodeUuid, hours, enabled } = resolved.value
-    if (enabled && nodeUuid.trim())
-      persistStats(nodeUuid, hours, value)
+    const { uuid: nodeUuid, hours, enabled, taskId } = resolved.value
+    if (enabled && nodeUuid.trim() && taskId !== null)
+      persistStats(nodeUuid, hours, taskId, value)
   })
 
   return {

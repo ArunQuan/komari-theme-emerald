@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { CardX } from '@/components/ui/card-x'
 import { DataTooltip } from '@/components/ui/data-tooltip'
 import { ProgressThin } from '@/components/ui/progress-thin'
+import { useNodePingDisplay } from '@/composables/useNodePingDisplay'
 import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatRelativeTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
@@ -87,19 +88,36 @@ const offlineRelative = computed(() => formatRelativeTime(props.node.time))
 const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
 
 const providerPings = computed(() => {
-  const pingEntries = Object.values(props.node.ping ?? {})
+  const pingEntries = Object.entries(props.node.ping ?? {})
 
   return networkProviders.map((provider) => {
-    const stats = pingEntries.find((ping) => {
+    const match = pingEntries.find(([, ping]) => {
       const name = String(ping.name ?? '').toLowerCase()
       return provider.keywords.some(keyword => name.includes(keyword))
-    }) ?? null
+    })
+    const taskId = match ? Number(match[0]) : null
 
-    return { ...provider, stats }
+    return {
+      ...provider,
+      taskId: Number.isSafeInteger(taskId) ? taskId : null,
+      stats: match?.[1] ?? null,
+    }
   })
 })
 
 const hasProviderPing = computed(() => providerPings.value.some(provider => provider.stats !== null))
+
+const providerPingDisplays = [
+  useNodePingDisplay(() => props.node.uuid, {
+    taskId: () => providerPings.value[0]?.taskId ?? null,
+  }),
+  useNodePingDisplay(() => props.node.uuid, {
+    taskId: () => providerPings.value[1]?.taskId ?? null,
+  }),
+  useNodePingDisplay(() => props.node.uuid, {
+    taskId: () => providerPings.value[2]?.taskId ?? null,
+  }),
+] as const
 
 function formatProviderLatency(ping: NodePing | null): string {
   if (!ping)
@@ -117,7 +135,7 @@ function formatProviderLoss(ping: NodePing | null): string {
   return `${ping.loss.toFixed(1)}%`
 }
 
-function getProviderPingBars(provider: typeof providerPings.value[number], metric: 'latency' | 'loss') {
+function getProviderFallbackBars(provider: typeof providerPings.value[number], metric: 'latency' | 'loss') {
   const ping = provider.stats
   const value = metric === 'latency'
     ? ping && Number.isFinite(ping.avg) && ping.avg >= 0 ? ping.avg : null
@@ -151,6 +169,14 @@ function getProviderPingBars(provider: typeof providerPings.value[number], metri
       ? `${provider.label} ${formatProviderLatency(ping)}`
       : `${provider.label} ${formatProviderLoss(ping)}`,
   }))
+}
+
+function getProviderHistoryBars(provider: typeof providerPings.value[number], providerIndex: number, metric: 'latency' | 'loss') {
+  const display = providerPingDisplays[providerIndex]
+  if (display?.pingStats.hasData.value)
+    return metric === 'latency' ? display.latencyRenderBars.value : display.lossRenderBars.value
+
+  return getProviderFallbackBars(provider, metric)
 }
 
 const isCompact = computed(() => appStore.cardDensity === 'compact')
@@ -349,7 +375,7 @@ function hasRegion(region: string | null | undefined): boolean {
           </div>
           <template v-if="hasProviderPing">
             <div
-              v-for="provider in providerPings" :key="provider.label"
+              v-for="(provider, providerIndex) in providerPings" :key="provider.label"
               class="col-span-6 grid grid-cols-2 gap-1.5"
               :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
             >
@@ -362,7 +388,7 @@ function hasRegion(region: string | null | undefined): boolean {
                   <span class="font-medium text-foreground/85">{{ formatProviderLatency(provider.stats) }}</span>
                 </div>
                 <div class="h-full min-h-0 opacity-80 group-hover/panel:opacity-100">
-                  <PingBars :bars="getProviderPingBars(provider, 'latency')" />
+                  <PingBars :bars="getProviderHistoryBars(provider, providerIndex, 'latency')" />
                 </div>
               </div>
               <div
@@ -374,7 +400,7 @@ function hasRegion(region: string | null | undefined): boolean {
                   <span class="font-medium text-foreground/85">{{ formatProviderLoss(provider.stats) }}</span>
                 </div>
                 <div class="h-full min-h-0 opacity-80 group-hover/panel:opacity-100">
-                  <PingBars :bars="getProviderPingBars(provider, 'loss')" />
+                  <PingBars :bars="getProviderHistoryBars(provider, providerIndex, 'loss')" />
                 </div>
               </div>
             </div>

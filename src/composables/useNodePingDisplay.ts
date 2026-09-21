@@ -16,6 +16,7 @@ export interface NodePingBar {
 }
 
 interface UseNodePingDisplayOptions {
+  taskId?: MaybeRefOrGetter<number | null | undefined>
   loadingDisplayText?: string
   emptyDisplayText?: string
   loadingPanelTooltipText?: Partial<Record<NodePingMetric, string>>
@@ -65,6 +66,7 @@ export function useNodePingDisplay(
   const pingStats = useNodePingStats(uuid, {
     hours: pingRecordsQueryHours,
     enabled: pingStatsEnabled,
+    taskId: options.taskId,
   })
 
   function buildPingBars(metric: NodePingMetric): NodePingBar[] {
