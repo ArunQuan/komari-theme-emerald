@@ -8,7 +8,7 @@ Every change must follow these steps in order:
 2. **Clean old zips**: `rm -f komari-theme-emerald-build-*.zip`
 3. `bun run build` — produces `komari-theme-emerald-build-<sha>.zip`
 4. `git add -A && git commit && git push origin master`
-5. `gh release create vX.Y.Z ./komari-theme-emerald-build-<sha>.zip --repo R1ddle1337/komari-theme-emerald --title "vX.Y.Z" --notes "..."`
+5. `gh release create vX.Y.Z ./komari-theme-emerald-build-<sha>.zip --repo ArunQuan/komari-theme-emerald --title "vX.Y.Z" --notes "..."`
 
 All three version numbers must match: `komari-theme.json` version = git tag = release title.
 
@@ -43,7 +43,7 @@ File: `komari-theme.json`
 
 - `author`: "Riddle & Tokinx"
 - `version`: must be updated every release
-- `url`: kept as upstream URL (original project link)
+- `url`: points to the published fork URL; the original project remains credited in `README.md`
 
 ## Build
 
