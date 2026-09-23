@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.1 - 2026-09-23
+
+### Changed
+
+- Reduced node-title and CPU, memory, disk, and traffic percentage text sizes for a more balanced card hierarchy.
+
 ## v0.3.0 - 2026-09-23
 
 ### Changed

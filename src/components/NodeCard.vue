@@ -285,7 +285,7 @@ function hasRegion(region: string | null | undefined): boolean {
             :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']"
           />
         </DataTooltip>
-        <span class="text-base font-semibold tracking-tight leading-none flex-1 min-w-0 truncate">{{ props.node.name }}</span>
+        <span class="text-sm font-semibold tracking-tight leading-none flex-1 min-w-0 truncate">{{ props.node.name }}</span>
       </div>
     </template>
 
@@ -330,7 +330,7 @@ function hasRegion(region: string | null | undefined): boolean {
               <span class="text-muted-foreground">
                 CPU
               </span>
-              <span class="text-[13px] font-semibold tabular-nums tracking-tight">{{ (props.node.cpu ?? 0).toFixed(1) }}%</span>
+              <span class="text-xs font-medium tabular-nums tracking-tight">{{ (props.node.cpu ?? 0).toFixed(1) }}%</span>
             </div>
             <ProgressThin :percentage="props.node.cpu ?? 0" :status="cpuStatus" :height="5" />
             <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
@@ -345,7 +345,7 @@ function hasRegion(region: string | null | undefined): boolean {
               <span class="text-muted-foreground">
                 内存
               </span>
-              <span class="text-[13px] font-semibold tabular-nums tracking-tight">{{ memPercentage.toFixed(1) }}%</span>
+              <span class="text-xs font-medium tabular-nums tracking-tight">{{ memPercentage.toFixed(1) }}%</span>
             </div>
             <ProgressThin :percentage="memPercentage" :status="memStatus" :height="5" />
             <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
@@ -359,7 +359,7 @@ function hasRegion(region: string | null | undefined): boolean {
               <span class="text-muted-foreground">
                 硬盘
               </span>
-              <span class="text-[13px] font-semibold tabular-nums tracking-tight">{{ diskPercentage.toFixed(1) }}%</span>
+              <span class="text-xs font-medium tabular-nums tracking-tight">{{ diskPercentage.toFixed(1) }}%</span>
             </div>
             <ProgressThin :percentage="diskPercentage" :status="diskStatus" :height="5" />
             <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
@@ -373,7 +373,7 @@ function hasRegion(region: string | null | undefined): boolean {
               <span class="text-muted-foreground">
                 流量
               </span>
-              <span class="text-[13px] font-semibold tabular-nums tracking-tight">{{ trafficUsedPercentage.toFixed(1) }}%</span>
+              <span class="text-xs font-medium tabular-nums tracking-tight">{{ trafficUsedPercentage.toFixed(1) }}%</span>
             </div>
             <ProgressThin :percentage="trafficUsedPercentage" status="success" :height="5" />
             <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
