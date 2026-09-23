@@ -1,14 +1,5 @@
 # Changelog
 
-## v0.2.1 - 2026-09-23
-
-### Fixed
-
-- Refined the compact four-column node summary layout.
-- Prevented long remaining-day values from being truncated.
-- Adjusted TCP/UDP width so long values remain readable.
-- Preserved provider latency and packet-loss history bars as narrow rounded vertical bars.
-
 ## v0.2.0 - 2026-09-21
 
 ### Changed
