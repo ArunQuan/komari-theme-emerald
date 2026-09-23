@@ -330,7 +330,7 @@ function hasRegion(region: string | null | undefined): boolean {
               <span class="text-muted-foreground">
                 CPU
               </span>
-              <span class="text-xs font-medium tabular-nums tracking-tight">{{ (props.node.cpu ?? 0).toFixed(1) }}%</span>
+              <span class="text-[11px] font-medium tabular-nums tracking-tight">{{ (props.node.cpu ?? 0).toFixed(1) }}%</span>
             </div>
             <ProgressThin :percentage="props.node.cpu ?? 0" :status="cpuStatus" :height="5" />
             <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
