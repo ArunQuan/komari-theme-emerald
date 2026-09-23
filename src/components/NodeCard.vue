@@ -13,7 +13,7 @@ import * as financeHelper from '@/utils/financeHelper'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatRelativeTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
-import { buildPriceTags, getExpireStatus, parseTags } from '@/utils/tagHelper'
+import { buildPriceTags, getExpireStatus, hasIPv4, hasIPv6, parseTags } from '@/utils/tagHelper'
 
 const props = defineProps<{ node: NodeData }>()
 
@@ -132,6 +132,14 @@ const remainingCompactText = computed(() => {
   const suffix = ' days left'
   return (text.endsWith(suffix) ? `${text.slice(0, -suffix.length)}d` : text).replaceAll(' ', '')
 })
+const remainingHeaderText = computed(() => {
+  if (appStore.lang !== 'zh-CN')
+    return remainingCompactText.value
+
+  return ['长期', '已过期'].includes(remainingCompactText.value)
+    ? remainingCompactText.value
+    : `剩余${remainingCompactText.value}`
+})
 const remainingValueText = computed(() => {
   const { price, expired_at: expiredAt, billing_cycle: billingCycle, currency } = props.node
   const priceValue = Number(price)
@@ -152,7 +160,7 @@ const remainingValueText = computed(() => {
   return `${symbol}${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(amount)}`
 })
 const hasFinanceSummary = computed(() => Boolean(props.node.expired_at || priceText.value))
-const metricColumnCount = computed(() => Number(appStore.showNodeConnections) + Number(hasFinanceSummary.value) + 2)
+const metricColumnCount = computed(() => Number(appStore.showNodeConnections) + 2)
 
 const isPinned = computed(() => appStore.isNodePinned(props.node.uuid))
 const offlineRelative = computed(() => formatRelativeTime(props.node.time))
@@ -285,7 +293,11 @@ function hasRegion(region: string | null | undefined): boolean {
             :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']"
           />
         </DataTooltip>
-        <span class="text-sm font-semibold tracking-tight leading-none flex-1 min-w-0 truncate">{{ props.node.name }}</span>
+        <div class="flex min-w-0 flex-1 items-center gap-1">
+          <span class="min-w-0 truncate text-sm font-semibold tracking-tight leading-none">{{ props.node.name }}</span>
+          <span v-if="hasIPv4(props.node.ipv4)" title="IPv4 可用" class="shrink-0 rounded border border-border/50 bg-sky-500/20 px-1 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">v4</span>
+          <span v-if="hasIPv6(props.node.ipv6)" title="IPv6 可用" class="shrink-0 rounded border border-border/50 bg-violet-500/20 px-1 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">v6</span>
+        </div>
       </div>
     </template>
 
@@ -310,12 +322,14 @@ function hasRegion(region: string | null | undefined): boolean {
     <template #default>
       <div class="flex flex-col gap-1.5">
         <div
-          v-if="appStore.showNodeUptime || priceText || props.node.expired_at"
-          class="flex flex-wrap items-center gap-1.5 overflow-hidden text-[11px] text-muted-foreground leading-none"
+          v-if="appStore.showNodeUptime || priceText || hasFinanceSummary"
+          class="flex flex-wrap items-center gap-0.5 overflow-hidden text-[11px] text-muted-foreground leading-none"
           :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
         >
-          <span v-if="appStore.showNodeUptime" class="inline-flex max-w-full shrink-0 truncate rounded-md border border-border/40 bg-muted/45 px-2 py-0.5 font-medium tabular-nums">{{ formatOnlineTime(props.node.uptime ?? 0) }}</span>
-          <span v-if="priceText" class="inline-flex max-w-full shrink-0 truncate rounded-md border border-border/40 bg-muted/45 px-2 py-0.5 font-medium tabular-nums">{{ priceText }}</span>
+          <span v-if="appStore.showNodeUptime" class="inline-flex max-w-full shrink-0 truncate rounded-md border border-border/40 bg-muted/45 px-1.5 py-0.5 font-medium tabular-nums">{{ formatOnlineTime(props.node.uptime ?? 0) }}</span>
+          <span v-if="priceText" class="inline-flex max-w-full shrink-0 truncate rounded-md border border-border/40 bg-muted/45 px-1.5 py-0.5 font-medium tabular-nums">{{ priceText }}</span>
+          <span v-if="hasFinanceSummary" class="inline-flex max-w-full shrink-0 truncate rounded-md border border-border/40 bg-muted/45 px-1.5 py-0.5 font-medium tabular-nums" :title="`剩余价值 ${remainingValueText || '-'}`">{{ remainingValueText || '-' }}</span>
+          <span v-if="hasFinanceSummary" class="inline-flex max-w-full shrink-0 truncate rounded-md border border-border/40 bg-muted/45 px-1.5 py-0.5 font-medium tabular-nums" :title="remainingText">{{ remainingHeaderText }}</span>
         </div>
         <div class="gap-x-3 gap-y-2 grid grid-cols-2">
           <!-- <div class="flex flex-col gap-1 col-span-2">
@@ -387,7 +401,7 @@ function hasRegion(region: string | null | undefined): boolean {
             </div>
           </div>
         </div>
-        <div class="flex flex-col gap-1 relative">
+        <div class="flex flex-col gap-1.5 relative">
           <div
             v-if="!props.node.online"
             class="absolute inset-0 flex flex-col gap-1 items-center justify-center z-1 text-center" aria-hidden="true"
@@ -399,13 +413,13 @@ function hasRegion(region: string | null | undefined): boolean {
               {{ offlineTime }}
             </div>
           </div>
-          <div class="grid gap-1" :style="{ gridTemplateColumns: `repeat(${metricColumnCount}, minmax(0, 1fr))` }">
+          <div class="grid gap-1.5" :style="{ gridTemplateColumns: `repeat(${metricColumnCount}, minmax(0, 1fr))` }">
             <div
-              class="min-w-0 flex flex-col gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
+              class="min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
               :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
               title="实时速率"
             >
-              <div class="flex min-w-0 flex-col text-[10px] font-medium tabular-nums">
+              <div class="flex min-w-0 flex-col text-[11px] font-medium leading-4 tabular-nums">
                 <div class="flex min-w-0 items-center gap-1 whitespace-nowrap text-green-600">
                   <Icon icon="tabler:chevron-up" width="12" height="12" class="shrink-0" />
                   <span class="min-w-0 truncate" :title="formatBytesPerSecond(props.node.net_out ?? 0)">{{ formatCompactBytesPerSecond(props.node.net_out ?? 0) }}</span>
@@ -417,11 +431,11 @@ function hasRegion(region: string | null | undefined): boolean {
               </div>
             </div>
             <div
-              class="min-w-0 flex flex-col gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
+              class="min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
               :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
               title="累计流量"
             >
-              <div class="flex min-w-0 flex-col text-[10px] font-medium tabular-nums">
+              <div class="flex min-w-0 flex-col text-[11px] font-medium leading-4 tabular-nums">
                 <div class="flex min-w-0 items-center gap-0.5 whitespace-nowrap text-muted-foreground">
                   <Icon icon="tabler:upload" width="10" height="10" class="shrink-0 text-muted-foreground" />
                   <span class="min-w-0 truncate" :title="formatBytes(props.node.net_total_up ?? 0)">{{ formatCompactBytes(props.node.net_total_up ?? 0) }}</span>
@@ -433,27 +447,12 @@ function hasRegion(region: string | null | undefined): boolean {
               </div>
             </div>
             <div
-              v-if="hasFinanceSummary"
-              class="min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
-              :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
-              :title="`${remainingText} · 剩余价值 ${remainingValueText || '-'}`"
-            >
-              <div class="flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground leading-tight">
-                <Icon icon="tabler:calendar" width="12" height="12" class="shrink-0" />
-                <span class="min-w-0 truncate" :title="remainingText">{{ remainingCompactText }}</span>
-              </div>
-              <div class="flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground leading-tight">
-                <Icon icon="tabler:wallet" width="12" height="12" class="shrink-0" />
-                <span class="min-w-0 truncate">{{ remainingValueText || '-' }}</span>
-              </div>
-            </div>
-            <div
               v-if="appStore.showNodeConnections"
-              class="min-w-0 flex flex-col gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
+              class="min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
               :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
               title="连接数"
             >
-              <div class="text-[11px] text-muted-foreground flex flex-col tabular-nums">
+              <div class="text-[11px] leading-4 text-muted-foreground flex flex-col tabular-nums">
                 <div class="flex flex-row items-center gap-1">
                   <span class="text-[10px] font-medium text-muted-foreground/70">TCP</span>
                   {{ (props.node.connections ?? 0).toLocaleString() }}
@@ -468,7 +467,7 @@ function hasRegion(region: string | null | undefined): boolean {
           <template v-if="hasProviderPing">
             <div
               v-for="(provider, providerIndex) in providerPings" :key="provider.label"
-              class="grid grid-cols-2 gap-1"
+              class="grid grid-cols-2 gap-1.5"
               :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
             >
               <div
