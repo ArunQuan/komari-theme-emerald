@@ -1,8 +1,8 @@
 {
-  "name": "Komari Emerald Custom",
-  "short": "KomariEmeraldCustom",
+  "name": "Komari Emerald Compact",
+  "short": "KomariEmeraldCompact",
   "description": "An emerald theme for Komari",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "Riddle & Tokinx",
   "url": "https://github.com/ArunQuan/komari-theme-emerald",
   "preview": "preview.png",

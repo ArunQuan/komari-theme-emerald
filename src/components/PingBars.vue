@@ -53,7 +53,7 @@ watch(() => props.bars, () => {
         v-for="(bar, index) in bars"
         :key="bar.key"
         :data-bar-index="index"
-        class="ping-bar block h-full w-full rounded-full"
+        class="ping-bar block h-full w-full rounded-[1px]"
         :class="bar.className"
       />
     </div>

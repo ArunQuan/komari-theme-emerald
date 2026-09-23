@@ -59,7 +59,7 @@ const showFiling = computed(() => showIcp.value || showPolice.value)
             href="https://github.com/ArunQuan/komari-theme-emerald" target="_blank" rel="noopener noreferrer"
             class="transition-opacity hover:opacity-80"
           >
-            <span class="font-medium text-foreground">Komari Emerald Custom</span>
+            <span class="font-medium text-foreground">Komari Emerald Compact</span>
           </a>
         </DataTooltip>
       </div>

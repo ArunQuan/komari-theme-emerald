@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.0 - 2026-09-23
+
+### Changed
+
+- Renamed the theme to `Komari Emerald Compact` and assigned the short identifier `KomariEmeraldCompact`.
+- Refined node-card typography, spacing, and compact metric layout.
+- Kept long traffic totals and live rates readable with compact formatting and full-value tooltips.
+- Added remaining-time and estimated remaining-value details to node cards.
+- Matched Telecom, Unicom, and Mobile latency and packet-loss panels to their corresponding provider data.
+
 ## v0.2.0 - 2026-09-21
 
 ### Changed
