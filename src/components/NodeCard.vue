@@ -330,7 +330,7 @@ function hasRegion(region: string | null | undefined): boolean {
               <span class="text-muted-foreground">
                 CPU
               </span>
-              <span class="text-[11px] font-medium tabular-nums tracking-tight">{{ (props.node.cpu ?? 0).toFixed(1) }}%</span>
+              <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ (props.node.cpu ?? 0).toFixed(1) }}%</span>
             </div>
             <ProgressThin :percentage="props.node.cpu ?? 0" :status="cpuStatus" :height="5" />
             <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
@@ -345,7 +345,7 @@ function hasRegion(region: string | null | undefined): boolean {
               <span class="text-muted-foreground">
                 内存
               </span>
-              <span class="text-xs font-medium tabular-nums tracking-tight">{{ memPercentage.toFixed(1) }}%</span>
+              <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ memPercentage.toFixed(1) }}%</span>
             </div>
             <ProgressThin :percentage="memPercentage" :status="memStatus" :height="5" />
             <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
@@ -359,7 +359,7 @@ function hasRegion(region: string | null | undefined): boolean {
               <span class="text-muted-foreground">
                 硬盘
               </span>
-              <span class="text-xs font-medium tabular-nums tracking-tight">{{ diskPercentage.toFixed(1) }}%</span>
+              <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ diskPercentage.toFixed(1) }}%</span>
             </div>
             <ProgressThin :percentage="diskPercentage" :status="diskStatus" :height="5" />
             <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
@@ -373,7 +373,7 @@ function hasRegion(region: string | null | undefined): boolean {
               <span class="text-muted-foreground">
                 流量
               </span>
-              <span class="text-xs font-medium tabular-nums tracking-tight">{{ trafficUsedPercentage.toFixed(1) }}%</span>
+              <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ trafficUsedPercentage.toFixed(1) }}%</span>
             </div>
             <ProgressThin :percentage="trafficUsedPercentage" status="success" :height="5" />
             <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
