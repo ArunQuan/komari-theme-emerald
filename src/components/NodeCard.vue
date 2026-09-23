@@ -12,7 +12,7 @@ import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatRelativeTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
-import { buildPriceTags, parseTags } from '@/utils/tagHelper'
+import { buildPriceTags, getDaysUntilExpired, parseTags } from '@/utils/tagHelper'
 
 const props = defineProps<{ node: NodeData }>()
 
@@ -25,6 +25,7 @@ const networkProviders = [
   { label: '联通', keywords: ['联通', 'unicom', 'chinaunicom', 'china unicom'] },
   { label: '移动', keywords: ['移动', 'mobile', 'chinamobile', 'china mobile'] },
 ] as const
+const WHITESPACE_REGEX = /\s+/g
 
 const appStore = useAppStore()
 
@@ -80,7 +81,23 @@ const trafficUsed = computed(() => {
 
 const priceTags = computed(() => buildPriceTags(props.node, appStore.lang))
 const remainingText = computed(() => priceTags.value[0]?.text ?? '剩余 -')
+const remainingPanelText = computed(() => appStore.lang === 'zh-CN'
+  ? remainingText.value.replace(WHITESPACE_REGEX, '')
+  : remainingText.value)
 const priceText = computed(() => priceTags.value[1]?.text ?? '')
+const remainingAmountText = computed(() => {
+  const price = Number(props.node.price)
+  const billingCycle = Number(props.node.billing_cycle)
+
+  if (price === 0 || price === -1)
+    return appStore.lang === 'zh-CN' ? '免费' : 'Free'
+  if (!props.node.expired_at || !Number.isFinite(price) || price <= 0 || !Number.isFinite(billingCycle) || billingCycle <= 0)
+    return '-'
+
+  const remainingDays = Math.max(getDaysUntilExpired(props.node.expired_at), 0)
+  const remainingAmount = price * Math.min(remainingDays, billingCycle) / billingCycle
+  return `${props.node.currency ?? ''}${remainingAmount.toFixed(2)}`
+})
 
 const isPinned = computed(() => appStore.isNodePinned(props.node.uuid))
 const offlineRelative = computed(() => formatRelativeTime(props.node.time))
@@ -238,12 +255,12 @@ function hasRegion(region: string | null | undefined): boolean {
     <template #default>
       <div class="flex flex-col gap-1.5">
         <div
+          v-if="appStore.showNodeUptime || priceText"
           class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-[11px] text-muted-foreground leading-none"
           :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
         >
           <span v-if="appStore.showNodeUptime" class="inline-flex max-w-full shrink-0 truncate rounded-sm bg-slate-500/[0.08] pl-0 pr-1 py-0.5">{{ formatOnlineTime(props.node.uptime ?? 0) }}</span>
           <span v-if="priceText" class="inline-flex max-w-full shrink-0 truncate rounded-sm bg-slate-500/[0.08] pl-0 pr-1 py-0.5">{{ priceText }}</span>
-          <span class="inline-flex max-w-full shrink-0 truncate rounded-sm bg-slate-500/[0.08] pl-0 pr-1 py-0.5">{{ remainingText }}</span>
         </div>
         <div class="gap-x-2 gap-y-1.5 grid grid-cols-2">
           <!-- <div class="flex flex-col gap-1 col-span-2">
@@ -315,7 +332,10 @@ function hasRegion(region: string | null | undefined): boolean {
             </div>
           </div>
         </div>
-        <div class="gap-2 grid grid-cols-6 relative">
+        <div
+          class="network-summary-grid gap-1.5 relative"
+          :class="[!appStore.showNodeConnections ? 'network-summary-grid--no-connections' : '']"
+        >
           <div
             v-if="!props.node.online"
             class="absolute inset-0 flex flex-col gap-1 items-center justify-center z-1 text-center" aria-hidden="true"
@@ -328,47 +348,62 @@ function hasRegion(region: string | null | undefined): boolean {
             </div>
           </div>
           <div
-            class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '', appStore.showNodeConnections ? 'col-span-2' : 'col-span-3']"
+            class="min-w-0 flex flex-col gap-0.5 p-1 rounded-sm bg-slate-500/5"
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
           >
-            <div class="text-[11px] flex flex-col">
-              <div class="text-green-600 flex flex-row items-center gap-1">
-                <Icon icon="tabler:chevron-up" width="12" height="12" />
+            <div class="text-[10px] flex flex-col whitespace-nowrap">
+              <div class="text-green-600 flex flex-row items-center gap-0.5">
+                <Icon icon="tabler:chevron-up" width="11" height="11" />
                 {{ formatBytesPerSecond(props.node.net_out ?? 0) }}
               </div>
-              <div class="text-blue-600 flex flex-row items-center gap-1">
-                <Icon icon="tabler:chevron-down" width="12" height="12" />
+              <div class="text-blue-600 flex flex-row items-center gap-0.5">
+                <Icon icon="tabler:chevron-down" width="11" height="11" />
                 {{ formatBytesPerSecond(props.node.net_in ?? 0) }}
               </div>
             </div>
           </div>
           <div
-            class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '', appStore.showNodeConnections ? 'col-span-2' : 'col-span-3']"
+            class="min-w-0 flex flex-col gap-0.5 p-1 rounded-sm bg-slate-500/5"
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
           >
-            <div class="text-[11px] text-muted-foreground flex flex-col">
-              <div class="flex flex-row items-center gap-1">
-                <Icon icon="tabler:upload" width="12" height="12" />
+            <div class="text-[10px] text-muted-foreground flex flex-col whitespace-nowrap">
+              <div class="flex flex-row items-center gap-0.5">
+                <Icon icon="tabler:upload" width="11" height="11" />
                 {{ formatBytes(props.node.net_total_up ?? 0) }}
               </div>
-              <div class="flex flex-row items-center gap-1">
-                <Icon icon="tabler:download" width="12" height="12" />
+              <div class="flex flex-row items-center gap-0.5">
+                <Icon icon="tabler:download" width="11" height="11" />
                 {{ formatBytes(props.node.net_total_down ?? 0) }}
               </div>
             </div>
           </div>
           <div
-            v-if="appStore.showNodeConnections"
-            class="col-span-2 flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
+            class="min-w-0 flex flex-col gap-0.5 p-1 rounded-sm bg-slate-500/5"
             :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
           >
-            <div class="text-[11px] text-muted-foreground flex flex-col">
-              <div class="flex flex-row items-center gap-1">
-                <span class="text-[10px] font-medium text-muted-foreground/70">TCP</span>
+            <div class="text-[10px] text-muted-foreground flex flex-col whitespace-nowrap">
+              <div class="flex flex-row items-center gap-0.5">
+                <Icon icon="tabler:calendar-time" width="11" height="11" />
+                <span class="shrink-0">{{ remainingPanelText }}</span>
+              </div>
+              <div class="flex flex-row items-center gap-0.5">
+                <Icon icon="tabler:wallet" width="11" height="11" />
+                {{ remainingAmountText }}
+              </div>
+            </div>
+          </div>
+          <div
+            v-if="appStore.showNodeConnections"
+            class="min-w-0 flex flex-col gap-0.5 p-1 rounded-sm bg-slate-500/5"
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
+          >
+            <div class="text-[10px] text-muted-foreground flex flex-col whitespace-nowrap">
+              <div class="flex flex-row items-center gap-0.5">
+                <span class="text-[9px] font-medium text-muted-foreground/70">TCP</span>
                 {{ (props.node.connections ?? 0).toLocaleString() }}
               </div>
-              <div class="flex flex-row items-center gap-1">
-                <span class="text-[10px] font-medium text-muted-foreground/70">UDP</span>
+              <div class="flex flex-row items-center gap-0.5">
+                <span class="text-[9px] font-medium text-muted-foreground/70">UDP</span>
                 {{ (props.node.connections_udp ?? 0).toLocaleString() }}
               </div>
             </div>
@@ -376,7 +411,7 @@ function hasRegion(region: string | null | undefined): boolean {
           <template v-if="hasProviderPing">
             <div
               v-for="(provider, providerIndex) in providerPings" :key="provider.label"
-              class="col-span-6 grid grid-cols-2 gap-1.5"
+              class="network-summary-provider grid grid-cols-2 gap-1.5"
               :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
             >
               <div
@@ -422,6 +457,19 @@ function hasRegion(region: string | null | undefined): boolean {
 </template>
 
 <style scoped>
+.network-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(max-content, 1.2fr) minmax(4rem, max-content);
+}
+
+.network-summary-grid--no-connections {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(max-content, 2fr);
+}
+
+.network-summary-provider {
+  grid-column: 1 / -1;
+}
+
 .node-card {
   position: relative;
   overflow: hidden;

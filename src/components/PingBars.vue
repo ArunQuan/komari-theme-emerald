@@ -53,7 +53,7 @@ watch(() => props.bars, () => {
         v-for="(bar, index) in bars"
         :key="bar.key"
         :data-bar-index="index"
-        class="ping-bar block h-full w-full rounded-full"
+        class="ping-bar block h-full"
         :class="bar.className"
       />
     </div>
@@ -70,6 +70,10 @@ watch(() => props.bars, () => {
 
 <style scoped>
 .ping-bar {
+  width: 3px;
+  min-width: 3px;
+  justify-self: center;
+  border-radius: 1.5px;
   transition:
     transform 150ms ease,
     opacity 150ms ease;
