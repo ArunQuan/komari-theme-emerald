@@ -9,6 +9,7 @@ import { DataTooltip } from '@/components/ui/data-tooltip'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import * as financeHelper from '@/utils/financeHelper'
+import { getCountryCodeFromRegion } from '@/utils/geoHelper'
 import { formatBytesPerSecondSplit, formatBytesSplit } from '@/utils/helper'
 
 const props = defineProps<{
@@ -63,6 +64,21 @@ const totalConnections = computed(() => {
   const tcp = onlineNodes.reduce((sum, node) => sum + (node.connections || 0), 0)
   const udp = onlineNodes.reduce((sum, node) => sum + (node.connections_udp || 0), 0)
   return { tcp, udp, total: tcp + udp }
+})
+
+const regionSummary = computed(() => {
+  const regions = new Set<string>()
+
+  for (const node of summaryNodes.value) {
+    const region = node.region?.trim()
+    if (!region)
+      continue
+
+    const code = getCountryCodeFromRegion(region)
+    regions.add(code ? `code:${code}` : `region:${region.toLocaleLowerCase()}`)
+  }
+
+  return regions.size
 })
 
 function formatNumber(num: number): string {
@@ -500,6 +516,39 @@ onMounted(async () => {
                 </div>
               </Transition>
             </DataTooltip>
+          </div>
+        </CardX>
+
+        <!-- 地区分布 -->
+        <CardX
+          v-else-if="cardType === 'regions'"
+          hoverable
+          class="group backdrop-blur-xl backdrop-saturate-150 bg-background/40 border-none hover:bg-background/60 ring-1 ring-foreground/[0.06] shadow-sm rounded-lg transition-all glass-hover-blur"
+          :class="getCardPositionClass(idx)"
+          content-class="h-full !p-3"
+        >
+          <div class="flex h-full flex-col justify-between gap-1">
+            <div class="flex items-start justify-between">
+              <span class="text-xs font-medium tracking-wider text-muted-foreground">地区分布</span>
+              <Icon
+                icon="tabler:map-pin" :width="20" :height="20"
+                class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
+              />
+            </div>
+            <div class="flex min-w-0 flex-col gap-1">
+              <Transition v-bind="metricSwitchTransitionProps">
+                <div
+                  :key="`regions-${summaryTransitionKey}`"
+                  class="flex items-baseline gap-1"
+                  :style="getMetricSwitchStyle(idx)"
+                >
+                  <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
+                    {{ regionSummary }}
+                  </span>
+                  <span class="text-[11px] md:text-xs font-medium text-muted-foreground">个</span>
+                </div>
+              </Transition>
+            </div>
           </div>
         </CardX>
       </template>

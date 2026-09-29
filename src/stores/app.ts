@@ -170,14 +170,18 @@ const useAppStore = defineStore('app', () => {
     return false
   })
 
-  type SummaryCardType = 'memory' | 'disk' | 'finance' | 'traffic' | 'speedUp' | 'speedDown' | 'connections'
-  const VALID_SUMMARY_CARDS: SummaryCardType[] = ['memory', 'disk', 'finance', 'traffic', 'speedUp', 'speedDown', 'connections']
+  type SummaryCardType = 'memory' | 'disk' | 'finance' | 'traffic' | 'speedUp' | 'speedDown' | 'connections' | 'regions'
+  const VALID_SUMMARY_CARDS: SummaryCardType[] = ['memory', 'disk', 'finance', 'traffic', 'speedUp', 'speedDown', 'connections', 'regions']
   const DEFAULT_SUMMARY_CARDS: SummaryCardType[] = ['memory', 'disk', 'finance', 'traffic', 'speedUp', 'speedDown']
 
   const summaryCards = computed<SummaryCardType[]>(() => {
     const settings = publicSettings.value?.theme_settings
-    if (settings && typeof settings.summaryCards === 'string' && settings.summaryCards.trim()) {
-      const parsed = settings.summaryCards.split(',').map((s: string) => s.trim()).filter((s: string) => VALID_SUMMARY_CARDS.includes(s as SummaryCardType)) as SummaryCardType[]
+    const previewSelection = import.meta.env.DEV && typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('previewSummaryCards')
+      : null
+    const configuredSelection = previewSelection || settings?.summaryCards
+    if (typeof configuredSelection === 'string' && configuredSelection.trim()) {
+      const parsed = [...new Set(configuredSelection.split(',').map((s: string) => s.trim()).filter((s: string) => VALID_SUMMARY_CARDS.includes(s as SummaryCardType)))] as SummaryCardType[]
       if (parsed.length > 0) {
         return parsed.slice(0, 6)
       }
