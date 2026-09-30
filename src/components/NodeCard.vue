@@ -9,6 +9,7 @@ import { DataTooltip } from '@/components/ui/data-tooltip'
 import { ProgressThin } from '@/components/ui/progress-thin'
 import { useNodePingDisplay } from '@/composables/useNodePingDisplay'
 import { useAppStore } from '@/stores/app'
+import { useNodesStore } from '@/stores/nodes'
 import * as financeHelper from '@/utils/financeHelper'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatRelativeTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
@@ -28,6 +29,24 @@ const networkProviders = [
 ] as const
 
 const appStore = useAppStore()
+const nodesStore = useNodesStore()
+const previewAddressFamilies = import.meta.env.DEV && typeof window !== 'undefined'
+  ? new URLSearchParams(window.location.search).get('previewAddressFamilies')
+  : null
+const previewAddressFamily = computed(() => {
+  if (previewAddressFamilies !== 'demo')
+    return null
+  const nodeIndex = nodesStore.nodes.findIndex(node => node.uuid === props.node.uuid)
+  return ['both', 'ipv4', 'ipv6'][Math.max(0, nodeIndex) % 3]
+})
+const showIPv4 = computed(() => hasIPv4(props.node.ipv4)
+  || appStore.addressFamilyFlags[props.node.uuid]?.ipv4 === true
+  || previewAddressFamily.value === 'both'
+  || previewAddressFamily.value === 'ipv4')
+const showIPv6 = computed(() => hasIPv6(props.node.ipv6)
+  || appStore.addressFamilyFlags[props.node.uuid]?.ipv6 === true
+  || previewAddressFamily.value === 'both'
+  || previewAddressFamily.value === 'ipv6')
 
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
 function formatCompactBytes(bytes: number) {
@@ -295,8 +314,8 @@ function hasRegion(region: string | null | undefined): boolean {
         </DataTooltip>
         <div class="flex min-w-0 flex-1 items-center gap-1">
           <span class="min-w-0 truncate text-sm font-semibold tracking-tight leading-none">{{ props.node.name }}</span>
-          <span v-if="hasIPv4(props.node.ipv4)" title="IPv4 可用" class="shrink-0 rounded border border-border/50 bg-sky-500/20 px-1 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">v4</span>
-          <span v-if="hasIPv6(props.node.ipv6)" title="IPv6 可用" class="shrink-0 rounded border border-border/50 bg-violet-500/20 px-1 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">v6</span>
+          <span v-if="showIPv4" title="IPv4 可用" class="shrink-0 rounded border border-border/50 bg-sky-500/20 px-1 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">v4</span>
+          <span v-if="showIPv6" title="IPv6 可用" class="shrink-0 rounded border border-border/50 bg-violet-500/20 px-1 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">v6</span>
         </div>
       </div>
     </template>

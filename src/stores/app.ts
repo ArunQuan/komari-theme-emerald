@@ -10,6 +10,11 @@ type Lang = 'zh-CN' | 'en-US'
 type NodeViewMode = 'card' | 'list'
 type RpcTransportMode = 'websocket' | 'http'
 
+interface AddressFamilyAvailability {
+  ipv4: boolean
+  ipv6: boolean
+}
+
 /** 固定的字节精度配置 */
 const BYTE_DECIMALS: ByteDecimalsConfig = {
   B: 0,
@@ -23,6 +28,35 @@ function isValidThemeMode(value: unknown): value is ThemeMode {
   return value === 'auto' || value === 'light' || value === 'dark'
 }
 
+function parseAddressFamilyFlags(value: unknown): Record<string, AddressFamilyAvailability> {
+  let parsed = value
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed) as unknown
+    }
+    catch {
+      return {}
+    }
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+    return {}
+
+  const flags: Record<string, AddressFamilyAvailability> = Object.create(null) as Record<string, AddressFamilyAvailability>
+  for (const [uuid, availability] of Object.entries(parsed)) {
+    if (!uuid || typeof availability !== 'object' || availability === null || Array.isArray(availability))
+      continue
+
+    const value = availability as Record<string, unknown>
+    flags[uuid] = {
+      ipv4: value.ipv4 === true,
+      ipv6: value.ipv6 === true,
+    }
+  }
+
+  return flags
+}
+
 const useAppStore = defineStore('app', () => {
   const loading = ref<boolean>(true)
 
@@ -30,6 +64,7 @@ const useAppStore = defineStore('app', () => {
   const themeMode = useStorageAsync<ThemeMode>('themeMode', 'auto', localStorage)
   const lang = ref<Lang>('zh-CN')
   const publicSettings = ref<PublicSettings>()
+  const addressFamilyFlags = computed(() => parseAddressFamilyFlags(publicSettings.value?.theme_settings?.addressFamilyFlags))
   const nodeSelectedGroup = useStorageAsync<string>('nodeSelectedGroup', 'all', localStorage)
   const shaderType = ref<ShaderType>((localStorage.getItem('shaderType') as ShaderType) || 'bubbles')
 
@@ -457,6 +492,7 @@ const useAppStore = defineStore('app', () => {
     shaderType,
     isLoggedIn,
     publicSettings,
+    addressFamilyFlags,
     connectionError,
     homeScrollPosition,
     updateThemeMode,

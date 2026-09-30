@@ -30,6 +30,7 @@ const DEFAULT_CONFIG: Required<InitConfig> = {
 
 /** 节点基本信息（配置、价格、到期日等）变化很慢，低频刷新即可 */
 const CLIENTS_REFRESH_INTERVAL_MS = 60_000
+const THEME_SHORT = 'KomariEmeraldCompact'
 
 /** 初始化状态管理 */
 class InitManager {
@@ -83,8 +84,12 @@ class InitManager {
       // 3. 获取用户信息
       await this.fetchUserInfo()
 
+      // 访客接口会清空 IP。管理员访问时只把地址是否存在同步为公开布尔标记。
       // 4. 获取节点信息和最新状态
       await this.fetchNodesData()
+
+      // 地址族标记不阻塞首页加载；管理员同步在后台完成。
+      void this.syncPublicAddressFamilyFlags()
 
       // 5. 解除加载状态
       this.appStore.loading = false
@@ -154,6 +159,62 @@ class InitManager {
       this.appStore.updateLoginState(false)
       console.error('[InitManager] Failed to fetch user info:', error)
       // 非关键错误，继续初始化
+    }
+  }
+
+  /**
+   * 管理员访问当前主题时，把公开节点的 IPv4/IPv6 有无状态写入主题公开配置。
+   * 地址原文只在本次请求内存中读取，不保存、不返回给访客。
+   */
+  private async syncPublicAddressFamilyFlags(): Promise<void> {
+    if (import.meta.env.DEV || !this.appStore.isLoggedIn)
+      return
+
+    const initialSettings = this.appStore.publicSettings
+    if (!initialSettings || initialSettings.theme !== THEME_SHORT)
+      return
+
+    try {
+      const api = getSharedApi()
+      const clients = await api.getAdminClients()
+      const flags: Record<string, { ipv4: boolean, ipv6: boolean }> = Object.create(null) as Record<string, { ipv4: boolean, ipv6: boolean }>
+
+      for (const client of clients.filter(client => client.hidden !== true).sort((a, b) => a.uuid.localeCompare(b.uuid))) {
+        if (!client.uuid)
+          continue
+        flags[client.uuid] = {
+          ipv4: typeof client.ipv4 === 'string' && client.ipv4.trim().length > 0,
+          ipv6: typeof client.ipv6 === 'string' && client.ipv6.trim().length > 0,
+        }
+      }
+
+      const serialize = (value: Record<string, { ipv4: boolean, ipv6: boolean }>) => JSON.stringify(
+        Object.fromEntries(Object.keys(value).sort().map(uuid => [uuid, {
+          ipv4: value[uuid]?.ipv4 === true,
+          ipv6: value[uuid]?.ipv6 === true,
+        }])),
+      )
+
+      // 重新读取当前配置，避免用页面启动时的旧值覆盖管理员刚保存的其他主题设置。
+      const currentSettings = await api.getPublicSettings()
+      if (currentSettings.theme !== THEME_SHORT)
+        return
+      const serializedFlags = serialize(flags)
+      if (currentSettings.theme_settings?.addressFamilyFlags === serializedFlags)
+        return
+
+      const nextThemeSettings = {
+        ...(currentSettings.theme_settings ?? {}),
+        addressFamilyFlags: serializedFlags,
+      }
+      await api.updateThemeSettings(THEME_SHORT, nextThemeSettings)
+      this.appStore.publicSettings = {
+        ...currentSettings,
+        theme_settings: nextThemeSettings,
+      }
+    }
+    catch (error) {
+      console.warn('[InitManager] Could not refresh public address-family flags:', error)
     }
   }
 

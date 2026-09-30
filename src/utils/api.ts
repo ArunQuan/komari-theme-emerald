@@ -83,6 +83,14 @@ export interface NodeInfo {
   updated_at: string
 }
 
+/** 管理员节点信息中用于生成公开地址族标记的最小字段 */
+export interface AdminClientInfo {
+  uuid: string
+  hidden: boolean
+  ipv4?: string | null
+  ipv6?: string | null
+}
+
 /** 实时状态数据（嵌套结构） */
 export interface RealtimeStatus {
   cpu: {
@@ -370,6 +378,18 @@ export class KomariApi {
    */
   async getNodes(): Promise<NodeInfo[]> {
     return this.get<NodeInfo[]>('/nodes')
+  }
+
+  /**
+   * 获取管理员可见的完整节点信息。地址只在内存中用于计算公开布尔标记。
+   */
+  async getAdminClients(): Promise<AdminClientInfo[]> {
+    return this.getRaw<AdminClientInfo[]>('/admin/client/list')
+  }
+
+  /** 保存当前主题的公开配置 */
+  async updateThemeSettings(theme: string, settings: Record<string, unknown>): Promise<void> {
+    await this.post<void>(`/admin/theme/settings?theme=${encodeURIComponent(theme)}`, settings)
   }
 
   /**
