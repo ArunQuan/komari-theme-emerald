@@ -43,7 +43,7 @@ interface SharedPingRecordsEntry {
 }
 
 const HISTORY_BUCKET_COUNT = 20
-const CACHE_VERSION = 7
+const CACHE_VERSION = 8
 const CACHE_KEY_PREFIX = 'komari-theme-emerald:node-ping-stats'
 const FULL_LOSS_EPSILON = 1e-6
 const PING_RECORD_REFRESH_INTERVAL_MS = 60_000
@@ -224,8 +224,9 @@ async function loadSharedPingRecords(entry: SharedPingRecordsEntry, hours: numbe
     try {
       const result = await rpc.getClient().call<SharedPingRecordsResponse>('common:getRecords', {
         type: 'ping',
-        // 新版 getRecords 可能只返回近期可用样本，hours 仅作为服务端查询窗口。
         hours,
+        // 默认最多返回 4000 条所有节点共享的记录，会使单节点的历史柱条出现空白。
+        maxCount: -1,
       })
 
       entry.data.value = {
@@ -471,7 +472,7 @@ export function useNodePingStats(
     syncSharedRecordsSubscription(null)
   })
 
-  // stats 由共享 getRecords 的近期样本派生，不将结果视为完整的 hours 时段数据。
+  // stats 由共享 getRecords 的指定时段样本派生。
   const stats = computed<NodePingStatsState>(() => {
     const { uuid: nodeUuid, hours, enabled, taskId } = resolved.value
     if (!enabled || !nodeUuid.trim() || taskId === null)

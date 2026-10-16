@@ -6,7 +6,7 @@ import { formatDateTime } from '@/utils/helper'
 
 export type NodePingMetric = 'latency' | 'loss'
 
-// getRecords 在新版主控中返回的是近期可用样本，不保证覆盖完整 1 小时。
+// 节点卡片展示最近 1 小时的 Ping 记录。
 const RECENT_PING_RECORDS_QUERY_HOURS = 1
 
 export interface NodePingBar {
