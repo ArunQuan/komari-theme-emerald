@@ -328,20 +328,27 @@ function buildPingHistory(records: PingRecord[]): NodePingHistoryPoint[] {
     bucketCount = Math.max(1, Math.min(bucketCount, Math.floor((lastTime - firstTime) / minBucketMs) + 1))
   const bucketSize = Math.max(1, (lastTime - firstTime) / bucketCount)
 
+  // Each sorted sample belongs to one bucket; scan once instead of filtering
+  // the full history for every bucket and allocating temporary arrays.
+  let cursor = 0
   return Array.from({ length: bucketCount }, (_, index) => {
     const startTime = firstTime + bucketSize * index
     const endTime = index === bucketCount - 1 ? lastTime + 1 : startTime + bucketSize
-    const bucketRecords = sortedRecords.filter(
-      record => record.timestamp >= startTime && record.timestamp < endTime,
-    )
-    const validLatencyRecords = bucketRecords.filter(record => record.value >= 0)
-    const lostCount = bucketRecords.length - validLatencyRecords.length
-    const latency = validLatencyRecords.length
-      ? average(validLatencyRecords.map(record => record.value))
-      : null
-    const loss = bucketRecords.length
-      ? lostCount / bucketRecords.length * 100
-      : null
+    let count = 0
+    let successCount = 0
+    let latencySum = 0
+    while (cursor < sortedRecords.length && sortedRecords[cursor]!.timestamp < endTime) {
+      const record = sortedRecords[cursor++]!
+      if (record.timestamp < startTime)
+        continue
+      count += 1
+      if (record.value >= 0) {
+        successCount += 1
+        latencySum += record.value
+      }
+    }
+    const latency = successCount ? latencySum / successCount : null
+    const loss = count ? (count - successCount) / count * 100 : null
 
     return {
       time: new Date(startTime).toISOString(),

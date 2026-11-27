@@ -7,7 +7,7 @@ Repo guide for `komari-theme-emerald`.
 - Generated: Wed May 27 2026, Asia/Shanghai
 - Branch: `master`
 - App: Vue 3 + Vite + reka-ui + Tailwind CSS v4 theme for Komari Monitor
-- Package manager: `bun` (>= 1.2)
+- Package manager: `bun` (1.4.4, pinned in packageManager)
 - Theme manifest: `komari-theme.json`
 
 ## What this repo is
@@ -25,8 +25,9 @@ Repo guide for `komari-theme-emerald`.
 - `.github/` CI workflow and issue templates
 - `docs/preview.png` release preview image
 - `komari-theme.json` theme manifest consumed by the zip build
-- `vite.config.ts` build, chunking, zip packaging
-- `package.json` root commands and pinned dependency versions
+- `vite.config.ts` Vite entry and chunking
+- `build/` local snapshot API and required-input ZIP packaging
+- `package.json` root commands and dependency ranges
 - `bun.lock` resolved lockfile (managed by bun)
 
 ## Root commands
@@ -37,13 +38,14 @@ Run from repo root only.
 bun run dev
 bun run build
 bun run preview
-bun run lint
+bun run lint:check
 ```
 
 Notes:
 
 - `bun run build` runs type check plus production build
-- `bun run lint` runs eslint with `--fix --cache`
+- `bun run lint:check` is read-only; `bun run lint` applies fixes
+- Commit `bun.lock`; install with `bun install --frozen-lockfile`
 - There is no test suite in this repository
 - Do not invent `bun test` or Vitest commands here
 
@@ -76,14 +78,14 @@ Source of truth: `.github/workflows/build-ci.yml`
 CI does only:
 
 1. `bun install --frozen-lockfile`
-2. `bun run build`
+2. `bun run check` (read-only lint, type-check, build, ZIP)
 
 CI does not run tests, because there is no test suite.
 
 ## Where to look
 
 - Start at `package.json` for root commands
-- Check `vite.config.ts` for build behavior, global constants, and zip packaging
+- Check `vite.config.ts` and `build/` for build behavior, global constants, local preview, and zip packaging
 - Check `komari-theme.json` for theme metadata and managed configuration schema
 - Check `src/` for app behavior
 - Check `public/images/` when code references image filenames directly
@@ -122,7 +124,5 @@ Contributor density, useful for triage:
 For local rules, defer to the nearest child guide:
 
 - `src/AGENTS.md` for app code, component, store, router, and utility changes
-- `.github/AGENTS.md` for workflow and issue template changes
-- `public/images/AGENTS.md` for runtime image asset naming and compatibility rules
 
 If a child guide exists, it overrides this root file for its subtree.
