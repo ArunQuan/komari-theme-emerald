@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.10 - 2026-11-28
+
+### Changed
+
+- Upgraded `NodeEarthGlobe` connection arcs to a synchronized 2D canvas overlay matching `cobe` spherical projection and horizon occlusion: renders thin trajectory rails with a single tapered gradient comet fly-line per active arc, star heads, and destination arrival ripples driven by live network traffic.
+- Styled Dark Mode online fly-lines in cool ice-blue to pure white (`#e0f2fe` → `#ffffff`) and Light Mode online fly-lines, rails, halos, and ripples in emerald green (`#059669` → `#34d399` → `#ffffff`).
+- Added red warning trajectories with breathing pulse for fully offline regions (no fly-line) and red trajectories/fly-lines/ripples for partially offline regions, plus low-perf WebGL arc fallback and a dev-only `?previewPerfTier=` query override in `src/utils/perfTier.ts`.
+
 ## v0.3.9 - 2026-11-28
 
 ### Added
