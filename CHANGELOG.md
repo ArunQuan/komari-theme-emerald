@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.9 - 2026-11-28
+
+### Added
+
+- Added `pageWidthMode` managed configuration (`wide` / `standard` / `full`, defaulting to `wide` capped at `min(94vw, 1920px)`) and a desktop toolbar quick-toggle button for cycling page width modes.
+
+### Changed
+
+- Replaced the fixed `1280px` container limit across `Header`, `App`, and `Footer` with reactive `containerWidthClass` so 1080p/2K/ultrawide displays add card columns cleanly without stretching individual cards.
+- Tuned wide-screen proportions for `NodeGeneralCards` (`7:5` grid split), `NodeEarthGlobe` (`max-w-[460px]`), `InstanceDetail` (`2xl:grid-cols-4` info cards), and `LoadChart` (`xl:h-52`).
+
 ## v0.3.8 - 2026-11-28
 
 ### Changed

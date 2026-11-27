@@ -2,7 +2,7 @@
   "name": "Komari Emerald Compact",
   "short": "KomariEmeraldCompact",
   "description": "An emerald theme for Komari",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "author": "Riddle & Tokinx",
   "url": "https://github.com/ArunQuan/komari-theme-emerald",
   "preview": "preview.png",
@@ -100,6 +100,14 @@
         "type": "number",
         "default": 300,
         "help": "节点卡片的最小宽度（单位：px），数值越大卡片越宽，默认 300"
+      },
+      {
+        "key": "pageWidthMode",
+        "name": "页面宽度模式",
+        "type": "select",
+        "default": "wide",
+        "options": "wide,standard,full",
+        "help": "wide：自适应宽屏（上限 1920px，推荐）；standard：经典居中（1280px）；full：超宽铺满（96% 屏宽）"
       },
       {
         "key": "showNodeConnections",
