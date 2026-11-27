@@ -10,7 +10,7 @@ const props = defineProps<{
 }>()
 
 const root = ref<HTMLElement>()
-const tip = ref<{ text: string, x: number } | null>(null)
+const tip = ref<{ text: string, x: number, align: 'center' | 'left' | 'right' } | null>(null)
 
 function handleOver(event: MouseEvent) {
   const el = (event.target as HTMLElement).closest<HTMLElement>('[data-bar-index]')
@@ -25,7 +25,9 @@ function handleOver(event: MouseEvent) {
   }
   const rootRect = root.value.getBoundingClientRect()
   const rect = el.getBoundingClientRect()
-  tip.value = { text: bar.tooltip, x: rect.left - rootRect.left + rect.width / 2 }
+  const x = rect.left - rootRect.left + rect.width / 2
+  const align = x < 52 ? 'left' : rootRect.width - x < 52 ? 'right' : 'center'
+  tip.value = { text: bar.tooltip, x, align }
 }
 
 function handleLeave() {
@@ -60,8 +62,9 @@ watch(() => props.bars, () => {
     <span
       v-if="tip"
       role="tooltip"
-      class="pointer-events-none absolute bottom-full z-20 mb-1 -translate-x-1/2 rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg whitespace-nowrap"
-      :style="{ left: `${tip.x}px` }"
+      class="pointer-events-none absolute bottom-full z-20 mb-1 rounded bg-foreground/85 px-1.5 py-1 text-[10px] leading-none text-background shadow-lg whitespace-nowrap"
+      :class="tip.align === 'center' ? '-translate-x-1/2' : tip.align === 'left' ? 'left-0' : 'right-0'"
+      :style="tip.align === 'center' ? { left: `${tip.x}px` } : undefined"
     >
       {{ tip.text }}
     </span>

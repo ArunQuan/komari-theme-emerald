@@ -77,12 +77,6 @@ const visitorRows = computed<VisitorInfoRow[]>(() => [
 ])
 const visibleRows = computed(() => visitorRows.value.filter(item => expand.value || !item.expandOnly))
 
-function getItemTransitionStyle(index: number): Record<string, string> {
-  return {
-    '--visitor-pill-delay': `${index * 28}ms`,
-  }
-}
-
 function formatVisitTime(date: Date): string {
   return new Intl.DateTimeFormat('zh-CN', {
     year: 'numeric',
@@ -361,44 +355,55 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="fixed inset-x-0 bottom-2.5 z-30 flex justify-center">
+  <div class="fixed inset-x-0 bottom-2.5 z-30 flex justify-center pointer-events-none px-3">
     <div
-      class="bg-background/30 p-1.5 px-3 shadow-[-1px_-1px_0_background,0_0_16px_rgba(0,0,0,0.05)] backdrop-blur-xl backdrop-saturate-150 ring-1 ring-foreground/[0.06] transition-[border-radius,transform,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-      :class="[expand ? 'rounded-lg -translate-y-1 bg-background/38 shadow-[-1px_-1px_0_background,0_10px_28px_rgba(0,0,0,0.08)]' : 'rounded-xl']"
+      role="button"
+      tabindex="0"
+      :aria-expanded="expand"
+      title="点击展开或收起访客信息"
+      class="pointer-events-auto cursor-pointer select-none bg-background/45 p-1.5 px-3 shadow-[-1px_-1px_0_background,0_0_16px_rgba(0,0,0,0.05)] backdrop-blur-xl backdrop-saturate-150 ring-1 ring-foreground/[0.08] transition-[border-radius,transform,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+      :class="[expand ? 'rounded-lg -translate-y-1 bg-background/60 shadow-[-1px_-1px_0_background,0_10px_28px_rgba(0,0,0,0.1)]' : 'rounded-xl hover:bg-background/55']"
       @click="expand = !expand"
+      @keydown.enter.prevent="expand = !expand"
+      @keydown.space.prevent="expand = !expand"
     >
-      <TransitionGroup
-        tag="div"
-        name="visitor-pill"
-        class="transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-        :class="[expand ? 'grid grid-cols-2 items-start justify-start gap-x-3 gap-y-2' : 'flex flex-nowrap items-center justify-center gap-x-3 gap-y-1']"
-      >
-        <div
-          v-for="(item, index) in visibleRows" :key="item.icon"
-          class="flex min-w-0 items-center gap-1 rounded-full transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-          :style="getItemTransitionStyle(index)"
+      <div class="flex items-end gap-2">
+        <TransitionGroup
+          tag="div"
+          name="visitor-pill"
+          class="transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          :class="[expand ? 'grid grid-cols-2 items-start justify-start gap-x-3 gap-y-2' : 'flex flex-nowrap items-center justify-center gap-x-3 gap-y-1']"
         >
-          <img
-            v-if="item.icon === 'tabler:world-pin' && flagSrc && flagVisible" :src="flagSrc" :alt="countryCode"
-            class="h-4 w-4 object-cover" @error="handleFlagError"
-          >
           <div
-            v-else
-            class="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-emerald-500/10 text-emerald-600"
+            v-for="item in visibleRows" :key="item.icon"
+            class="flex min-w-0 items-center gap-1 rounded-full"
           >
-            <Icon :icon="item.icon" :width="14" :height="14" />
+            <img
+              v-if="item.icon === 'tabler:world-pin' && flagSrc && flagVisible" :src="flagSrc" :alt="countryCode"
+              class="h-4 w-4 shrink-0 object-cover" @error="handleFlagError"
+            >
+            <div
+              v-else
+              class="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            >
+              <Icon :icon="item.icon" :width="14" :height="14" />
+            </div>
+            <div class="min-w-0">
+              <div v-if="loading" class="h-2 w-24 animate-pulse rounded-full bg-muted/70" />
+              <p v-else class="mt-0.5 max-w-36 truncate text-xs font-medium text-muted-foreground sm:max-w-52">
+                {{ item.value }}
+              </p>
+            </div>
           </div>
-          <div
-            class="min-w-0 transition-[opacity,transform] duration-220 ease-[cubic-bezier(0.22,1,0.36,1)]"
-            :class="[expand || !index ? 'block opacity-100 translate-y-0' : 'hidden md:block md:opacity-100', !expand && index ? 'md:translate-y-0' : '']"
-          >
-            <div v-if="loading" class="h-2 w-24 animate-pulse rounded-full bg-muted/70" />
-            <p v-else class="mt-0.5 max-w-30 truncate text-xs font-medium text-muted-foreground sm:max-w-50">
-              {{ item.value }}
-            </p>
-          </div>
-        </div>
-      </TransitionGroup>
+        </TransitionGroup>
+        <Icon
+          icon="tabler:chevron-up"
+          :width="14"
+          :height="14"
+          class="shrink-0 self-center text-muted-foreground/70 transition-transform duration-300"
+          :class="expand ? 'rotate-180' : ''"
+        />
+      </div>
     </div>
   </div>
 </template>

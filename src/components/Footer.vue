@@ -30,8 +30,11 @@ const showFiling = computed(() => showIcp.value || showPolice.value)
 </script>
 
 <template>
-  <footer class="w-full sm:flex-row sm:gap-4 sm:items-center sm:justify-between max-w-[1280px] mx-auto p-4">
-    <div class="flex flex-row text-xs text-muted-foreground">
+  <footer
+    class="w-full flex flex-col gap-1.5 sm:flex-row sm:gap-4 sm:items-center sm:justify-between max-w-[1280px] mx-auto px-4 pt-4"
+    :class="appStore.visitorInfoCardEnabled ? 'pb-16 sm:pb-14' : 'pb-4'"
+  >
+    <div class="flex flex-col gap-1 items-center text-xs text-muted-foreground sm:flex-1 sm:flex-row sm:justify-between">
       <div class="flex gap-1 items-center">
         Powered by
         <DataTooltip
@@ -47,8 +50,7 @@ const showFiling = computed(() => showIcp.value || showPolice.value)
           </a>
         </DataTooltip>
       </div>
-      <div class="flex-1" />
-      <div class="flex flex-wrap gap-1 items-center">
+      <div class="flex flex-wrap justify-center gap-1 items-center">
         Theme by
         <DataTooltip
           as="span"

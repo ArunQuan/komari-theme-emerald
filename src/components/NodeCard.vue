@@ -179,6 +179,17 @@ const remainingValueText = computed(() => {
   return `${symbol}${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(amount)}`
 })
 const hasFinanceSummary = computed(() => Boolean(props.node.expired_at || priceText.value))
+const expireStatus = computed(() => getExpireStatus(props.node.expired_at))
+const remainingPillClass = computed(() => {
+  if (!props.node.expired_at)
+    return 'border-border/40 bg-muted/45'
+  if (expireStatus.value === 'expired' || expireStatus.value === 'critical')
+    return 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+  if (expireStatus.value === 'warning')
+    return 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+  return 'border-border/40 bg-muted/45'
+})
+const trafficStatus = computed(() => showTrafficProgress(props.node) ? getStatus(trafficUsedPercentage.value) : 'success')
 const metricColumnCount = computed(() => Number(appStore.showNodeConnections) + 2)
 
 const isPinned = computed(() => appStore.isNodePinned(props.node.uuid))
@@ -293,29 +304,31 @@ function hasRegion(region: string | null | undefined): boolean {
 <template>
   <CardX
     hoverable
-    class="node-card w-full cursor-pointer backdrop-blur-xl backdrop-saturate-150 bg-background/45 border-none shadow-sm shadow-slate-900/[0.03] hover:bg-background/65 hover:shadow-md hover:shadow-slate-900/[0.06] transition-all duration-200 rounded-xl ring-1 ring-foreground/[0.08] glass-hover-blur"
-    :class="[!props.node.online && '!shadow-red-600/20']"
+    tabindex="0"
+    class="node-card w-full cursor-pointer backdrop-blur-xl backdrop-saturate-150 bg-background/45 border-none shadow-sm shadow-slate-900/[0.03] hover:bg-background/65 hover:shadow-md hover:shadow-slate-900/[0.06] transition-all duration-200 rounded-xl ring-1 ring-foreground/[0.08] glass-hover-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+    :class="[!props.node.online && '!shadow-rose-600/20']"
     :header-class="`max-md:px-3 max-md:py-2.5 ${isCompact ? 'md:px-3 md:py-2' : ''}`"
     :content-class="`max-md:p-3 max-md:pt-0 ${isCompact ? 'md:p-3 md:pt-0' : ''}`"
     @click="emit('click')"
+    @keydown.enter.self="emit('click')"
   >
     <template #header>
       <div class="flex gap-2 min-w-0 items-center">
         <DataTooltip
           placement="right"
           :content="formatUptime(props.node.uptime ?? 0)"
-          class="size-2 rounded-full" :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']"
+          class="size-2 rounded-full" :class="[props.node.online ? 'bg-emerald-500' : 'bg-rose-500']"
           content-class="whitespace-nowrap"
         >
           <div
             class="animate-ping absolute inset-0 rounded-full opacity-50"
-            :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']"
+            :class="[props.node.online ? 'bg-emerald-500' : 'bg-rose-500']"
           />
         </DataTooltip>
         <div class="flex min-w-0 flex-1 items-center gap-1">
           <span class="min-w-0 truncate text-sm font-semibold tracking-tight leading-none">{{ props.node.name }}</span>
-          <span v-if="showIPv4" title="IPv4 可用" class="shrink-0 rounded border border-border/50 bg-sky-500/20 px-1 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">v4</span>
-          <span v-if="showIPv6" title="IPv6 可用" class="shrink-0 rounded border border-border/50 bg-violet-500/20 px-1 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">v6</span>
+          <span v-if="showIPv4" title="IPv4 可用" class="shrink-0 rounded border border-sky-500/25 bg-sky-500/15 px-1 py-0.5 text-[9px] font-medium leading-none text-sky-700 dark:text-sky-300">v4</span>
+          <span v-if="showIPv6" title="IPv6 可用" class="shrink-0 rounded border border-violet-500/25 bg-violet-500/15 px-1 py-0.5 text-[9px] font-medium leading-none text-violet-700 dark:text-violet-300">v6</span>
         </div>
       </div>
     </template>
@@ -342,88 +355,17 @@ function hasRegion(region: string | null | undefined): boolean {
       <div class="flex flex-col gap-1.5">
         <div
           v-if="appStore.showNodeUptime || priceText || hasFinanceSummary"
-          class="flex flex-wrap items-center gap-0.5 overflow-hidden text-[11px] text-muted-foreground leading-none"
-          :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
+          class="flex flex-wrap items-center gap-1 overflow-hidden text-[11px] text-muted-foreground leading-none"
         >
           <span v-if="appStore.showNodeUptime" class="inline-flex max-w-full shrink-0 truncate rounded-md border border-border/40 bg-muted/45 px-1.5 py-0.5 font-medium tabular-nums">{{ formatOnlineTime(props.node.uptime ?? 0) }}</span>
           <span v-if="priceText" class="inline-flex max-w-full shrink-0 truncate rounded-md border border-border/40 bg-muted/45 px-1.5 py-0.5 font-medium tabular-nums">{{ priceText }}</span>
           <span v-if="hasFinanceSummary" class="inline-flex max-w-full shrink-0 truncate rounded-md border border-border/40 bg-muted/45 px-1.5 py-0.5 font-medium tabular-nums" :title="`剩余价值 ${remainingValueText || '-'}`">{{ remainingValueText || '-' }}</span>
-          <span v-if="hasFinanceSummary" class="inline-flex max-w-full shrink-0 truncate rounded-md border border-border/40 bg-muted/45 px-1.5 py-0.5 font-medium tabular-nums" :title="remainingText">{{ remainingHeaderText }}</span>
+          <span v-if="hasFinanceSummary" class="inline-flex max-w-full shrink-0 truncate rounded-md border px-1.5 py-0.5 font-medium tabular-nums" :class="remainingPillClass" :title="remainingText">{{ remainingHeaderText }}</span>
         </div>
-        <div class="gap-x-3 gap-y-2 grid grid-cols-2">
-          <!-- <div class="flex flex-col gap-1 col-span-2">
-                <div class="flex gap-2 items-center">
-                  <img :src="getOSImage(props.node.os)" :alt="getOSName(props.node.os)" class="size-4">
-                  <span class="text-xs">{{ getOSName(props.node.os) }}</span>
-                </div>
-              </div> -->
-          <!-- CPU -->
-          <div class="flex flex-col gap-0.5">
-            <div class="w-full text-[11px] font-medium flex flex-row items-center justify-between">
-              <span class="text-muted-foreground">
-                CPU
-              </span>
-              <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ (props.node.cpu ?? 0).toFixed(1) }}%</span>
-            </div>
-            <ProgressThin :percentage="props.node.cpu ?? 0" :status="cpuStatus" :height="5" />
-            <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
-              {{ props.node.load.toFixed(2) ?? 0 }}, {{ props.node.load5.toFixed(2) ?? 0 }}, {{
-                props.node.load15.toFixed(2) ?? 0 }} ({{ props.node.cpu_cores }}c)
-            </div>
-          </div>
-
-          <!-- 内存 -->
-          <div class="flex flex-col gap-0.5">
-            <div class="w-full text-[11px] font-medium flex flex-row items-center justify-between">
-              <span class="text-muted-foreground">
-                内存
-              </span>
-              <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ memPercentage.toFixed(1) }}%</span>
-            </div>
-            <ProgressThin :percentage="memPercentage" :status="memStatus" :height="5" />
-            <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
-              {{ formatBytes(props.node.ram ?? 0) }} / {{ formatBytes(props.node.mem_total ?? 0) }}
-            </div>
-          </div>
-
-          <!-- 硬盘 -->
-          <div class="flex flex-col gap-0.5">
-            <div class="w-full text-[11px] font-medium flex flex-row items-center justify-between">
-              <span class="text-muted-foreground">
-                硬盘
-              </span>
-              <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ diskPercentage.toFixed(1) }}%</span>
-            </div>
-            <ProgressThin :percentage="diskPercentage" :status="diskStatus" :height="5" />
-            <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
-              {{ formatBytes(props.node.disk ?? 0) }} / {{ formatBytes(props.node.disk_total ?? 0) }}
-            </div>
-          </div>
-
-          <!-- 流量进度条 -->
-          <div class="flex flex-col gap-0.5">
-            <div class="w-full text-[11px] font-medium flex flex-row items-center justify-between">
-              <span class="text-muted-foreground">
-                流量
-              </span>
-              <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ trafficUsedPercentage.toFixed(1) }}%</span>
-            </div>
-            <ProgressThin :percentage="trafficUsedPercentage" status="success" :height="5" />
-            <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
-              {{ formatBytes(trafficUsed) }} /
-              <template v-if="showTrafficProgress(node)">
-                {{ formatBytes(props.node.traffic_limit) }}
-              </template>
-              <template v-else>
-                ∞
-              </template>
-            </div>
-          </div>
-        </div>
-        <div class="flex flex-col gap-1.5 relative">
+        <div class="relative flex flex-col gap-1.5">
           <div
             v-if="!props.node.online"
-            class="absolute inset-0 flex flex-col gap-1 items-center justify-center z-1 text-center" aria-hidden="true"
+            class="absolute inset-0 flex flex-col gap-1 items-center justify-center z-1 text-center pointer-events-none" aria-hidden="true"
           >
             <div class="text-sm font-medium text-destructive">
               离线{{ offlineRelative !== '-' ? ` ${offlineRelative}` : '' }}
@@ -432,89 +374,154 @@ function hasRegion(region: string | null | undefined): boolean {
               {{ offlineTime }}
             </div>
           </div>
-          <div class="grid gap-1.5" :style="{ gridTemplateColumns: `repeat(${metricColumnCount}, minmax(0, 1fr))` }">
-            <div
-              class="min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
-              :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
-              title="实时速率"
-            >
-              <div class="flex min-w-0 flex-col text-[11px] font-medium leading-4 tabular-nums">
-                <div class="flex min-w-0 items-center gap-1 whitespace-nowrap text-green-600">
-                  <Icon icon="tabler:chevron-up" width="12" height="12" class="shrink-0" />
-                  <span class="min-w-0 truncate" :title="formatBytesPerSecond(props.node.net_out ?? 0)">{{ formatCompactBytesPerSecond(props.node.net_out ?? 0) }}</span>
+          <div class="flex flex-col gap-1.5 transition-[filter,opacity] duration-200" :class="[!props.node.online ? 'blur-[2px] opacity-40' : '']">
+            <div class="gap-x-3 gap-y-2 grid grid-cols-2">
+              <!-- CPU -->
+              <div class="flex flex-col gap-0.5">
+                <div class="w-full text-[11px] font-medium flex flex-row items-center justify-between">
+                  <span class="text-muted-foreground">
+                    CPU
+                  </span>
+                  <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ (props.node.cpu ?? 0).toFixed(1) }}%</span>
                 </div>
-                <div class="flex min-w-0 items-center gap-1 whitespace-nowrap text-blue-600">
-                  <Icon icon="tabler:chevron-down" width="12" height="12" class="shrink-0" />
-                  <span class="min-w-0 truncate" :title="formatBytesPerSecond(props.node.net_in ?? 0)">{{ formatCompactBytesPerSecond(props.node.net_in ?? 0) }}</span>
+                <ProgressThin :percentage="props.node.cpu ?? 0" :status="cpuStatus" :height="5" />
+                <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
+                  {{ props.node.load.toFixed(2) ?? 0 }}, {{ props.node.load5.toFixed(2) ?? 0 }}, {{
+                    props.node.load15.toFixed(2) ?? 0 }} ({{ props.node.cpu_cores }}c)
+                </div>
+              </div>
+
+              <!-- 内存 -->
+              <div class="flex flex-col gap-0.5">
+                <div class="w-full text-[11px] font-medium flex flex-row items-center justify-between">
+                  <span class="text-muted-foreground">
+                    内存
+                  </span>
+                  <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ memPercentage.toFixed(1) }}%</span>
+                </div>
+                <ProgressThin :percentage="memPercentage" :status="memStatus" :height="5" />
+                <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
+                  {{ formatBytes(props.node.ram ?? 0) }} / {{ formatBytes(props.node.mem_total ?? 0) }}
+                </div>
+              </div>
+
+              <!-- 硬盘 -->
+              <div class="flex flex-col gap-0.5">
+                <div class="w-full text-[11px] font-medium flex flex-row items-center justify-between">
+                  <span class="text-muted-foreground">
+                    硬盘
+                  </span>
+                  <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ diskPercentage.toFixed(1) }}%</span>
+                </div>
+                <ProgressThin :percentage="diskPercentage" :status="diskStatus" :height="5" />
+                <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
+                  {{ formatBytes(props.node.disk ?? 0) }} / {{ formatBytes(props.node.disk_total ?? 0) }}
+                </div>
+              </div>
+
+              <!-- 流量进度条 -->
+              <div class="flex flex-col gap-0.5">
+                <div class="w-full text-[11px] font-medium flex flex-row items-center justify-between">
+                  <span class="text-muted-foreground">
+                    流量
+                  </span>
+                  <span class="text-[11px] font-medium tabular-nums tracking-tight text-foreground">{{ trafficUsedPercentage.toFixed(1) }}%</span>
+                </div>
+                <ProgressThin :percentage="trafficUsedPercentage" :status="trafficStatus" :height="5" />
+                <div class="text-[10px] text-muted-foreground/85 tabular-nums tracking-tight truncate">
+                  {{ formatBytes(trafficUsed) }} /
+                  <template v-if="showTrafficProgress(node)">
+                    {{ formatBytes(props.node.traffic_limit) }}
+                  </template>
+                  <template v-else>
+                    ∞
+                  </template>
+                </div>
+              </div>
+            </div>
+            <div class="grid gap-1.5" :style="{ gridTemplateColumns: `repeat(${metricColumnCount}, minmax(0, 1fr))` }">
+              <div
+                class="min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
+                title="实时速率"
+              >
+                <div class="flex min-w-0 flex-col text-[11px] font-medium leading-4 tabular-nums">
+                  <div class="flex min-w-0 items-center gap-1 whitespace-nowrap text-emerald-600 dark:text-emerald-400">
+                    <Icon icon="tabler:chevron-up" width="12" height="12" class="shrink-0" />
+                    <span class="min-w-0 truncate" :title="formatBytesPerSecond(props.node.net_out ?? 0)">{{ formatCompactBytesPerSecond(props.node.net_out ?? 0) }}</span>
+                  </div>
+                  <div class="flex min-w-0 items-center gap-1 whitespace-nowrap text-sky-600 dark:text-sky-400">
+                    <Icon icon="tabler:chevron-down" width="12" height="12" class="shrink-0" />
+                    <span class="min-w-0 truncate" :title="formatBytesPerSecond(props.node.net_in ?? 0)">{{ formatCompactBytesPerSecond(props.node.net_in ?? 0) }}</span>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
+                title="累计流量"
+              >
+                <div class="flex min-w-0 flex-col text-[11px] font-medium leading-4 tabular-nums">
+                  <div class="flex min-w-0 items-center gap-0.5 whitespace-nowrap text-muted-foreground">
+                    <Icon icon="tabler:upload" width="10" height="10" class="shrink-0 text-muted-foreground" />
+                    <span class="min-w-0 truncate" :title="formatBytes(props.node.net_total_up ?? 0)">{{ formatCompactBytes(props.node.net_total_up ?? 0) }}</span>
+                  </div>
+                  <div class="flex min-w-0 items-center gap-0.5 whitespace-nowrap text-muted-foreground">
+                    <Icon icon="tabler:download" width="10" height="10" class="shrink-0 text-muted-foreground" />
+                    <span class="min-w-0 truncate" :title="formatBytes(props.node.net_total_down ?? 0)">{{ formatCompactBytes(props.node.net_total_down ?? 0) }}</span>
+                  </div>
+                </div>
+              </div>
+              <div
+                v-if="appStore.showNodeConnections"
+                class="min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
+                title="连接数"
+              >
+                <div class="text-[11px] leading-4 text-muted-foreground flex flex-col tabular-nums">
+                  <div class="flex flex-row items-center gap-1">
+                    <span class="text-[10px] font-medium text-muted-foreground/70">TCP</span>
+                    {{ (props.node.connections ?? 0).toLocaleString() }}
+                  </div>
+                  <div class="flex flex-row items-center gap-1">
+                    <span class="text-[10px] font-medium text-muted-foreground/70">UDP</span>
+                    {{ (props.node.connections_udp ?? 0).toLocaleString() }}
+                  </div>
                 </div>
               </div>
             </div>
             <div
-              class="min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
-              :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
-              title="累计流量"
+              v-if="hasProviderPing"
+              class="rounded-md bg-slate-500/5 px-2 py-1.5 ring-1 ring-border/35 flex flex-col gap-1.5"
             >
-              <div class="flex min-w-0 flex-col text-[11px] font-medium leading-4 tabular-nums">
-                <div class="flex min-w-0 items-center gap-0.5 whitespace-nowrap text-muted-foreground">
-                  <Icon icon="tabler:upload" width="10" height="10" class="shrink-0 text-muted-foreground" />
-                  <span class="min-w-0 truncate" :title="formatBytes(props.node.net_total_up ?? 0)">{{ formatCompactBytes(props.node.net_total_up ?? 0) }}</span>
+              <div
+                v-for="(provider, providerIndex) in providerPings" :key="provider.label"
+                class="grid grid-cols-2 gap-2.5"
+              >
+                <div
+                  class="group/panel min-w-0"
+                  :title="`延迟 · ${provider.label}`"
+                >
+                  <div class="mb-0.5 flex items-center justify-between gap-1 text-[10px] font-medium leading-none tabular-nums">
+                    <span class="shrink-0 text-muted-foreground">{{ provider.label }}</span>
+                    <span class="truncate text-right font-medium text-foreground/85">{{ formatProviderLatency(provider.stats) }}</span>
+                  </div>
+                  <div class="h-1.5 opacity-80 transition-opacity group-hover/panel:opacity-100">
+                    <PingBars :bars="getProviderHistoryBars(provider, providerIndex, 'latency')" />
+                  </div>
                 </div>
-                <div class="flex min-w-0 items-center gap-0.5 whitespace-nowrap text-muted-foreground">
-                  <Icon icon="tabler:download" width="10" height="10" class="shrink-0 text-muted-foreground" />
-                  <span class="min-w-0 truncate" :title="formatBytes(props.node.net_total_down ?? 0)">{{ formatCompactBytes(props.node.net_total_down ?? 0) }}</span>
-                </div>
-              </div>
-            </div>
-            <div
-              v-if="appStore.showNodeConnections"
-              class="min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-md bg-slate-500/5 ring-1 ring-border/35"
-              :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
-              title="连接数"
-            >
-              <div class="text-[11px] leading-4 text-muted-foreground flex flex-col tabular-nums">
-                <div class="flex flex-row items-center gap-1">
-                  <span class="text-[10px] font-medium text-muted-foreground/70">TCP</span>
-                  {{ (props.node.connections ?? 0).toLocaleString() }}
-                </div>
-                <div class="flex flex-row items-center gap-1">
-                  <span class="text-[10px] font-medium text-muted-foreground/70">UDP</span>
-                  {{ (props.node.connections_udp ?? 0).toLocaleString() }}
+                <div
+                  class="group/panel min-w-0"
+                  :title="`丢包 · ${provider.label}`"
+                >
+                  <div class="mb-0.5 flex items-center justify-between gap-1 text-[10px] font-medium leading-none tabular-nums">
+                    <span class="shrink-0 text-muted-foreground">丢包</span>
+                    <span class="truncate text-right font-medium text-foreground/85">{{ formatProviderLoss(provider.stats) }}</span>
+                  </div>
+                  <div class="h-1.5 opacity-80 transition-opacity group-hover/panel:opacity-100">
+                    <PingBars :bars="getProviderHistoryBars(provider, providerIndex, 'loss')" />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-          <template v-if="hasProviderPing">
-            <div
-              v-for="(provider, providerIndex) in providerPings" :key="provider.label"
-              class="grid grid-cols-2 gap-1.5"
-              :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
-            >
-              <div
-                class="group/panel min-w-0 rounded-md bg-slate-500/5 px-2 py-1 ring-1 ring-border/35"
-                :title="`延迟 · ${provider.label}`"
-              >
-                <div class="mb-0.5 flex items-center justify-between gap-1 text-[10px] font-medium leading-none tabular-nums">
-                  <span class="shrink-0 text-muted-foreground">{{ provider.label }}</span>
-                  <span class="truncate text-right font-medium text-foreground/85">{{ formatProviderLatency(provider.stats) }}</span>
-                </div>
-                <div class="h-2 opacity-80 transition-opacity group-hover/panel:opacity-100">
-                  <PingBars :bars="getProviderHistoryBars(provider, providerIndex, 'latency')" />
-                </div>
-              </div>
-              <div
-                class="group/panel min-w-0 rounded-md bg-slate-500/5 px-2 py-1 ring-1 ring-border/35"
-                :title="`丢包 · ${provider.label}`"
-              >
-                <div class="mb-0.5 flex items-center justify-between gap-1 text-[10px] font-medium leading-none tabular-nums">
-                  <span class="shrink-0 text-muted-foreground">丢包</span>
-                  <span class="truncate text-right font-medium text-foreground/85">{{ formatProviderLoss(provider.stats) }}</span>
-                </div>
-                <div class="h-2 opacity-80 transition-opacity group-hover/panel:opacity-100">
-                  <PingBars :bars="getProviderHistoryBars(provider, providerIndex, 'loss')" />
-                </div>
-              </div>
-            </div>
-          </template>
         </div>
         <div v-if="customTags.length > 0" class="flex shrink-0 flex-wrap gap-1 items-center">
           <Badge
@@ -534,37 +541,5 @@ function hasRegion(region: string | null | undefined): boolean {
 <style scoped>
 .node-card {
   position: relative;
-  overflow: hidden;
-}
-
-.node-offline-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  pointer-events: none;
-  border-radius: inherit;
-  background-color: var(--card);
-  transition: opacity 200ms ease;
-}
-
-.node-card:hover .node-offline-overlay {
-  opacity: 0;
-}
-
-.node-offline-overlay__content {
-  display: flex;
-  max-width: 100%;
-  flex-direction: column;
-  gap: 6px;
-  align-items: center;
-}
-
-.node-offline-overlay__header,
-.node-offline-overlay__tags {
-  max-width: 100%;
 }
 </style>

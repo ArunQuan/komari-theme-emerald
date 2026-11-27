@@ -41,14 +41,19 @@ function toggleMenu() {
 }
 
 const shaderOptions: { label: string, value: ShaderType, icon: string }[] = [
-  { label: '气泡', value: 'bubbles', icon: 'icon-park-outline:bubble' },
-  { label: '流体', value: 'liquid', icon: 'icon-park-outline:water-level' },
-  { label: '无', value: 'none', icon: 'icon-park-outline:close-one' },
+  { label: '气泡', value: 'bubbles', icon: 'tabler:circles' },
+  { label: '流体', value: 'liquid', icon: 'tabler:ripple' },
+  { label: '无', value: 'none', icon: 'tabler:circle-off' },
 ]
 
 function selectShader(value: ShaderType) {
   appStore.shaderType = value
   showShaderMenu.value = false
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (showShaderMenu.value && e.key === 'Escape')
+    showShaderMenu.value = false
 }
 
 function handleClickOutside(e: MouseEvent) {
@@ -65,22 +70,24 @@ function handleClickOutside(e: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside, true)
+  document.addEventListener('keydown', handleKeydown)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside, true)
+  document.removeEventListener('keydown', handleKeydown)
 })
 
 const actionButtons = computed(() => {
   const buttons = [
     {
       title: appStore.offlineNotifyEnabled ? '掉线通知：已开启' : '掉线通知：已关闭',
-      icon: appStore.offlineNotifyEnabled ? 'icon-park-outline:remind' : 'icon-park-outline:close-remind',
+      icon: appStore.offlineNotifyEnabled ? 'tabler:bell-ringing' : 'tabler:bell-off',
       action: 'toggleOfflineNotify',
     },
     {
       title: appStore.themeMode === 'auto' ? '自动主题' : appStore.themeMode === 'light' ? '浅色主题' : '深色主题',
-      icon: appStore.themeMode === 'auto' ? 'icon-park-outline:dark-mode' : appStore.themeMode === 'light' ? 'icon-park-outline:sun-one' : 'icon-park-outline:moon',
+      icon: appStore.themeMode === 'auto' ? 'tabler:brightness-half' : appStore.themeMode === 'light' ? 'tabler:sun' : 'tabler:moon',
       action: 'toggleTheme',
     },
   ]
@@ -88,7 +95,7 @@ const actionButtons = computed(() => {
   if (appStore.isLoggedIn || !appStore.hideAdminEntryWhenLoggedOut) {
     buttons.push({
       title: '后台管理',
-      icon: 'icon-park-outline:setting',
+      icon: 'tabler:settings',
       action: 'jumpToSetting',
     })
   }
@@ -135,8 +142,8 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Komari Mon
 
 <template>
   <div
-    class="transition-all duration-200 top-0 sticky z-10 border-b border-transparent"
-    :class="isScrolled ? '!border-slate-500/10 backdrop-blur-xl backdrop-saturate-150' : 'bg-transparent'"
+    class="transition-all duration-200 top-0 sticky z-30 border-b border-transparent"
+    :class="isScrolled ? '!border-slate-500/15 bg-background/80 shadow-xs backdrop-blur-xl backdrop-saturate-150' : 'bg-transparent'"
   >
     <div class="px-4 flex-between h-14 max-w-[1280px] mx-auto">
       <div class="flex items-center gap-3 cursor-pointer" @click="router.push('/')">
@@ -154,8 +161,8 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Komari Mon
           <div ref="triggerRef" class="relative shader-menu-container">
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button variant="ghost" size="icon-sm" @click.stop="toggleMenu">
-                  <Icon icon="icon-park-outline:pic" :width="18" :height="18" />
+                <Button variant="ghost" size="icon-sm" aria-label="背景效果" @click.stop="toggleMenu">
+                  <Icon icon="tabler:sparkles" :width="18" :height="18" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>背景效果</TooltipContent>

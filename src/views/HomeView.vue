@@ -137,10 +137,28 @@ const groupNodeList = computed(() => {
 // 卡片视图的排序（列表视图由 NodeList 自己的表头/chips 排序）
 const cardSortKey = ref('')
 const cardSortDir = ref<1 | -1>(1)
+const mobileSearchOpen = ref(false)
+const mobileSearchRef = ref<HTMLElement>()
+
+function toggleMobileSearch() {
+  mobileSearchOpen.value = !mobileSearchOpen.value
+  if (mobileSearchOpen.value) {
+    nextTick(() => {
+      const input = mobileSearchRef.value?.querySelector('input')
+      input?.focus()
+    })
+  }
+}
 
 function handleCardSort(key: string) {
   if (cardSortKey.value === key) {
-    cardSortDir.value = cardSortDir.value === 1 ? -1 : 1
+    if (cardSortDir.value === 1) {
+      cardSortDir.value = -1
+    }
+    else {
+      cardSortKey.value = ''
+      cardSortDir.value = 1
+    }
   }
   else {
     cardSortKey.value = key
@@ -204,22 +222,22 @@ function getNodeItemTransitionStyle(index: number): Record<string, string> {
       <div class="nodes">
         <Tabs v-model="appStore.nodeSelectedGroup" class="w-full flex-col gap-4">
           <div class="flex gap-2 items-center flex-nowrap">
-            <div class="min-w-0 flex-1 overflow-x-auto rounded-sm pointer-events-none">
+            <div class="tabs-scroll min-w-0 flex-1 overflow-x-auto rounded-sm pointer-events-none">
               <TabsList class="w-max h-8 backdrop-blur-xl backdrop-saturate-150 bg-background/40 rounded-lg ring-1 ring-foreground/[0.06] shadow-sm pointer-events-auto">
                 <TabsTrigger
                   v-for="g in allTabs" :key="g.name" :value="g.name"
-                  class="h-6.5 flex-none shrink-0 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm"
+                  class="h-6.5 flex-none shrink-0 text-xs border-none data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 shadow-none rounded-sm"
                 >
                   {{ g.tab }}
                   <span class="text-[10px] opacity-50 -ml-0.5">{{ g.count }}</span>
                 </TabsTrigger>
               </TabsList>
             </div>
-            <div class="search flex gap-2 items-center pointer-events-auto">
+            <div class="search flex gap-2 items-center shrink-0 pointer-events-auto">
               <Button
                 variant="outline" size="icon" aria-label="卡片视图"
                 class="w-8 h-8 border-none backdrop-blur-xl backdrop-saturate-150 bg-background/40 shadow-none hover:bg-background/60 rounded-lg ring-1 ring-foreground/[0.06]"
-                :class="[appStore.nodeViewMode === 'card' ? '!text-green-600 !bg-background' : '']"
+                :class="[appStore.nodeViewMode === 'card' ? '!text-emerald-600 dark:!text-emerald-400 !bg-background' : '']"
                 @click="appStore.nodeViewMode = 'card'"
               >
                 <Icon icon="tabler:layout-grid" :width="14" :height="14" />
@@ -227,7 +245,7 @@ function getNodeItemTransitionStyle(index: number): Record<string, string> {
               <Button
                 variant="outline" size="icon" aria-label="列表视图"
                 class="w-8 h-8 border-none backdrop-blur-xl backdrop-saturate-150 bg-background/40 shadow-none hover:bg-background/60 rounded-lg ring-1 ring-foreground/[0.06]"
-                :class="[appStore.nodeViewMode === 'list' ? '!text-green-600 !bg-background' : '']"
+                :class="[appStore.nodeViewMode === 'list' ? '!text-emerald-600 dark:!text-emerald-400 !bg-background' : '']"
                 @click="appStore.nodeViewMode = 'list'"
               >
                 <Icon icon="tabler:table" :width="14" :height="14" />
@@ -237,39 +255,67 @@ function getNodeItemTransitionStyle(index: number): Record<string, string> {
                 variant="outline" size="icon"
                 :aria-label="appStore.cardDensity === 'compact' ? '切换为舒适密度' : '切换为紧凑密度'"
                 class="w-8 h-8 border-none backdrop-blur-xl backdrop-saturate-150 bg-background/40 shadow-none hover:bg-background/60 rounded-lg ring-1 ring-foreground/[0.06]"
-                :class="[appStore.cardDensity === 'compact' ? '!text-green-600 !bg-background' : '']"
+                :class="[appStore.cardDensity === 'compact' ? '!text-emerald-600 dark:!text-emerald-400 !bg-background' : '']"
                 @click="appStore.toggleCardDensity()"
               >
                 <Icon :icon="appStore.cardDensity === 'compact' ? 'tabler:baseline-density-small' : 'tabler:baseline-density-medium'" :width="14" :height="14" />
               </Button>
-              <div class="relative z-1 w-8 h-8">
-                <div class="absolute top-0 right-0 ">
-                  <Input
-                    v-model="appStore.nodeSearchText" placeholder="搜索节点名称、地区、系统"
-                    class="transition-all placeholder:text-transparent border-none shadow-none w-8 h-8 backdrop-blur-xl backdrop-saturate-150 bg-background/40 rounded-lg ring-1 ring-foreground/[0.06] hover:!bg-background/60 focus:!w-60 focus:!pl-7.5 focus:placeholder:!text-muted-foreground focus:!bg-background/60 focus:!ring-foreground/[0.1]"
-                    :class="[appStore.nodeSearchText ? '!w-60 !pl-7.5 !pr-7 !bg-background/60' : '']"
-                  />
-                  <Icon
-                    icon="tabler:search" :width="14" :height="14"
-                    class="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                  />
-                  <button
-                    v-if="appStore.nodeSearchText" type="button" aria-label="清除搜索"
-                    class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    @click="appStore.nodeSearchText = ''"
-                  >
-                    <Icon icon="tabler:x" :width="13" :height="13" />
-                  </button>
-                </div>
+              <Button
+                variant="outline" size="icon" aria-label="搜索节点"
+                class="sm:hidden w-8 h-8 border-none backdrop-blur-xl backdrop-saturate-150 bg-background/40 shadow-none hover:bg-background/60 rounded-lg ring-1 ring-foreground/[0.06]"
+                :class="[(mobileSearchOpen || appStore.nodeSearchText) ? '!text-emerald-600 dark:!text-emerald-400 !bg-background' : '']"
+                @click="toggleMobileSearch"
+              >
+                <Icon icon="tabler:search" :width="14" :height="14" />
+              </Button>
+              <div class="hidden sm:block relative shrink-0 h-8">
+                <Input
+                  v-model="appStore.nodeSearchText" placeholder="搜索节点名称、地区、系统"
+                  class="transition-all duration-200 placeholder:text-transparent border-none shadow-none w-8 h-8 backdrop-blur-xl backdrop-saturate-150 bg-background/40 rounded-lg ring-1 ring-foreground/[0.06] hover:!bg-background/60 focus:w-48 md:focus:w-56 focus:pl-7.5 focus:pr-7 focus:placeholder:text-muted-foreground focus:!bg-background/60 focus:ring-foreground/[0.1]"
+                  :class="[appStore.nodeSearchText ? '!w-48 md:!w-56 !pl-7.5 !pr-7 !bg-background/60' : '']"
+                />
+                <Icon
+                  icon="tabler:search" :width="14" :height="14"
+                  class="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                />
+                <button
+                  v-if="appStore.nodeSearchText" type="button" aria-label="清除搜索"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  @click="appStore.nodeSearchText = ''"
+                >
+                  <Icon icon="tabler:x" :width="13" :height="13" />
+                </button>
               </div>
             </div>
+          </div>
+          <!-- 移动端独立搜索行 -->
+          <div
+            v-if="mobileSearchOpen || appStore.nodeSearchText"
+            ref="mobileSearchRef"
+            class="relative sm:hidden -mt-1 pointer-events-auto"
+          >
+            <Input
+              v-model="appStore.nodeSearchText" placeholder="搜索节点名称、地区、系统"
+              class="w-full h-8 pl-7.5 pr-7 border-none shadow-none backdrop-blur-xl backdrop-saturate-150 bg-background/55 rounded-lg ring-1 ring-foreground/[0.08] focus:!bg-background/70"
+            />
+            <Icon
+              icon="tabler:search" :width="14" :height="14"
+              class="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground"
+            />
+            <button
+              v-if="appStore.nodeSearchText" type="button" aria-label="清除搜索"
+              class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              @click="appStore.nodeSearchText = ''"
+            >
+              <Icon icon="tabler:x" :width="13" :height="13" />
+            </button>
           </div>
           <!-- 卡片视图排序 chips -->
           <div v-if="appStore.nodeViewMode === 'card'" class="sort-chips flex gap-1 overflow-x-auto -mt-1 pointer-events-auto">
             <button
               v-for="opt in NODE_SORT_OPTIONS" :key="opt.key" type="button"
               class="shrink-0 h-6 px-2 rounded-md text-[11px] backdrop-blur-xl bg-background/40 ring-1 ring-foreground/[0.06] transition-colors hover:bg-background/60"
-              :class="[cardSortKey === opt.key ? 'text-green-600 bg-background/70' : 'text-muted-foreground']"
+              :class="[cardSortKey === opt.key ? 'text-emerald-600 dark:text-emerald-400 bg-background/70' : 'text-muted-foreground']"
               @click="handleCardSort(opt.key)"
             >
               {{ opt.label }}{{ cardSortKey === opt.key ? (cardSortDir === 1 ? ' ↑' : ' ↓') : '' }}
@@ -312,10 +358,12 @@ function getNodeItemTransitionStyle(index: number): Record<string, string> {
 </template>
 
 <style scoped>
+.tabs-scroll,
 .sort-chips {
   scrollbar-width: none;
 }
 
+.tabs-scroll::-webkit-scrollbar,
 .sort-chips::-webkit-scrollbar {
   display: none;
 }

@@ -520,7 +520,7 @@ function hideAllTasks() {
 // 通用 Tooltip 配置
 const baseTooltipConfig = computed(() => ({
   trigger: 'axis' as const,
-  confine: false,
+  confine: true,
   backgroundColor: chartThemeColors.value.tooltipBg,
   borderColor: 'transparent',
   borderWidth: 0,
@@ -626,7 +626,7 @@ const pingChartOption = computed(() => {
             const task = tasks.value.find(t => t.name === item.seriesName)
             const color = task ? colorMap.get(task.id) || chartColors[0] : chartColors[0]
             const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:8px;flex-shrink:0"></span>`
-            html += `<div style="display:flex;align-items:center">${colorDot}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.seriesName}</span><span style="margin-left:auto;font-weight:600;margin-left:16px;font-variant-numeric:tabular-nums">${Math.round(item.value)} ms</span></div>`
+            html += `<div style="display:flex;align-items:center">${colorDot}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.seriesName}</span><span style="margin-left:auto;padding-left:16px;font-weight:600;font-variant-numeric:tabular-nums">${Math.round(item.value)} ms</span></div>`
           }
         }
         html += '</div>'
@@ -718,7 +718,7 @@ onBeforeUnmount(() => {
         <TabsList class="w-max h-8 backdrop-blur-xl backdrop-saturate-150 bg-background/40 rounded-lg ring-1 ring-foreground/[0.06] shadow-sm">
           <TabsTrigger
             v-for="view in availableViews" :key="view.label" :value="view.label"
-            class="h-6.5 flex-none shrink-0 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm"
+            class="h-6.5 flex-none shrink-0 text-xs border-none data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 shadow-none rounded-sm"
           >
             {{ view.label }}
           </TabsTrigger>
@@ -728,14 +728,14 @@ onBeforeUnmount(() => {
       <div class="flex gap-2 items-center">
         <Button
           variant="ghost" size="xs" class="h-7 rounded-lg backdrop-blur-xl backdrop-saturate-150 bg-background/40 hover:bg-background/60 border-none ring-1 ring-foreground/[0.06]"
-          :class="selectedTaskIds.length === tasks.length ? 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600' : ''"
+          :class="selectedTaskIds.length === tasks.length ? 'shadow-[0_0_0_2px] shadow-emerald-500/15 text-emerald-600 dark:text-emerald-400' : ''"
           @click="showAllTasks"
         >
           全选
         </Button>
         <Button
           variant="ghost" size="xs" class="h-7 rounded-lg backdrop-blur-xl backdrop-saturate-150 bg-background/40 hover:bg-background/60 border-none ring-1 ring-foreground/[0.06]"
-          :class="!selectedTaskIds.length && 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600'"
+          :class="!selectedTaskIds.length && 'shadow-[0_0_0_2px] shadow-emerald-500/15 text-emerald-600 dark:text-emerald-400'"
           @click="hideAllTasks"
         >
           全不选
@@ -760,16 +760,14 @@ onBeforeUnmount(() => {
         >
           <div
             v-for="task in latestValues" :key="task.id"
-            class="p-2 rounded-lg backdrop-blur-xl backdrop-saturate-150 bg-background/40 hover:bg-background/60 hover:shadow-[0_0_0_2px] hover:shadow-primary/10 flex gap-3 cursor-pointer select-none transition-all items-center ring-1 ring-foreground/[0.06] glass-hover-blur"
-            :class="[!selectedTaskIds.includes(task.id) && 'opacity-30']"
-            :onmouseover="(e: MouseEvent) => ((e.currentTarget as HTMLElement).style.borderColor = task.color)"
-            :onmouseout="(e: MouseEvent) => ((e.currentTarget as HTMLElement).style.borderColor = '')"
+            class="p-2 rounded-lg backdrop-blur-xl backdrop-saturate-150 bg-background/40 hover:bg-background/60 hover:ring-foreground/20 hover:shadow-md flex gap-3 cursor-pointer select-none transition-all items-center ring-1 ring-foreground/[0.06] glass-hover-blur"
+            :class="[!selectedTaskIds.includes(task.id) && 'opacity-35']"
             @click="toggleTask(task.id)"
           >
             <div class="flex-1 min-w-0">
               <TooltipProvider>
                 <div class="flex gap-2 items-center">
-                  <div class="rounded h-4 w-1" :style="{ backgroundColor: task.color }" />
+                  <div class="rounded h-4 w-1 shrink-0" :style="{ backgroundColor: task.color }" />
                   <span class="text-sm font-semibold truncate">{{ task.name }}</span>
                   <div class="flex-1" />
                   <Tooltip
@@ -778,7 +776,7 @@ onBeforeUnmount(() => {
                   >
                     <TooltipTrigger as-child>
                       <Button variant="ghost" size="icon-xs" class="text-slate-500" @click.stop="toggleTaskTooltip(task.id)">
-                        <Icon icon="carbon:information" :width="14" :height="14" />
+                        <Icon icon="tabler:info-circle" :width="14" :height="14" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent class="!rounded p-3">
@@ -849,19 +847,19 @@ onBeforeUnmount(() => {
             <div class="flex gap-2 items-center">
               <Button
                 variant="ghost" size="xs" class="h-7 rounded-lg backdrop-blur-xl backdrop-saturate-150 bg-background/40 hover:bg-background/60 border-none ring-1 ring-foreground/[0.06]"
-                :class="showDelay && 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600'" @click="showDelay = !showDelay"
+                :class="showDelay && 'shadow-[0_0_0_2px] shadow-emerald-500/15 text-emerald-600 dark:text-emerald-400'" @click="showDelay = !showDelay"
               >
                 延迟
               </Button>
               <Button
                 variant="ghost" size="xs" class="h-7 rounded-lg backdrop-blur-xl backdrop-saturate-150 bg-background/40 hover:bg-background/60 border-none ring-1 ring-foreground/[0.06]"
-                :class="showLoss && 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600'" @click="showLoss = !showLoss"
+                :class="showLoss && 'shadow-[0_0_0_2px] shadow-emerald-500/15 text-emerald-600 dark:text-emerald-400'" @click="showLoss = !showLoss"
               >
                 丢包
               </Button>
               <Button
                 variant="ghost" size="xs" class="h-7 rounded-lg backdrop-blur-xl backdrop-saturate-150 bg-background/40 hover:bg-background/60 border-none ring-1 ring-foreground/[0.06]"
-                :class="cutPeak && 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600'" @click="cutPeak = !cutPeak"
+                :class="cutPeak && 'shadow-[0_0_0_2px] shadow-emerald-500/15 text-emerald-600 dark:text-emerald-400'" @click="cutPeak = !cutPeak"
               >
                 平滑峰值
               </Button>
@@ -871,7 +869,7 @@ onBeforeUnmount(() => {
               >
                 <TooltipTrigger as-child>
                   <Button variant="ghost" size="icon-xs" class="text-slate-500" @click.stop="toggleSmoothInfoTooltip">
-                    <Icon icon="carbon:information" :width="14" :height="14" />
+                    <Icon icon="tabler:info-circle" :width="14" :height="14" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>

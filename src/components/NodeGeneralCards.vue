@@ -2,7 +2,7 @@
 import type { NodeData } from '@/stores/nodes'
 import type { CurrencyCode } from '@/utils/financeHelper'
 import { Icon } from '@iconify/vue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import NodeEarthGlobe from '@/components/NodeEarthGlobe.vue'
 import { CardX } from '@/components/ui/card-x'
 import { DataTooltip } from '@/components/ui/data-tooltip'
@@ -32,6 +32,70 @@ const metricSwitchTransitionProps = computed(() => ({
 }))
 
 const openFinanceCard = ref(false)
+let financeTriggerEl: HTMLElement | null = null
+let financePopupEl: HTMLElement | null = null
+const financePopupStyle = ref({
+  top: '0px',
+  left: '0px',
+  width: '320px',
+})
+
+function setFinanceTriggerEl(el: unknown): void {
+  financeTriggerEl = el instanceof HTMLElement ? el : null
+}
+
+function setFinancePopupEl(el: unknown): void {
+  financePopupEl = el instanceof HTMLElement ? el : null
+}
+
+function updateFinancePopupPosition(): void {
+  if (!financeTriggerEl || typeof window === 'undefined')
+    return
+  const rect = financeTriggerEl.getBoundingClientRect()
+  const viewportW = window.innerWidth
+  const viewportH = window.innerHeight
+  const margin = 12
+  const popupWidth = Math.min(352, Math.max(240, viewportW - margin * 2))
+  const preferredLeft = rect.left + rect.width / 2 - popupWidth / 2
+  const left = Math.min(Math.max(preferredLeft, margin), viewportW - popupWidth - margin)
+  const estimatedHeight = financePopupEl?.offsetHeight || 176
+  const spaceBelow = viewportH - rect.bottom - margin
+  const top = spaceBelow >= estimatedHeight || rect.top < estimatedHeight + margin
+    ? Math.min(rect.bottom + 8, viewportH - estimatedHeight - margin)
+    : Math.max(margin, rect.top - estimatedHeight - 8)
+  financePopupStyle.value = {
+    top: `${Math.max(margin, top)}px`,
+    left: `${left}px`,
+    width: `${popupWidth}px`,
+  }
+}
+
+function toggleFinanceCard(): void {
+  openFinanceCard.value = !openFinanceCard.value
+  if (openFinanceCard.value)
+    nextTick(updateFinancePopupPosition)
+}
+
+function handleFinanceOutsideClick(event: MouseEvent): void {
+  if (!openFinanceCard.value)
+    return
+  const target = event.target as Node | null
+  if (!target)
+    return
+  if (financeTriggerEl?.contains(target) || financePopupEl?.contains(target))
+    return
+  openFinanceCard.value = false
+}
+
+function handleFinanceKeydown(event: KeyboardEvent): void {
+  if (openFinanceCard.value && event.key === 'Escape')
+    openFinanceCard.value = false
+}
+
+function handleFinanceViewportChange(): void {
+  if (openFinanceCard.value)
+    updateFinancePopupPosition()
+}
 
 function getMetricSwitchStyle(index: number): Record<string, string> {
   return {
@@ -216,11 +280,23 @@ function getCardPositionClass(idx: number): string {
 }
 
 onMounted(async () => {
+  document.addEventListener('click', handleFinanceOutsideClick, true)
+  document.addEventListener('keydown', handleFinanceKeydown)
+  window.addEventListener('resize', handleFinanceViewportChange)
+  window.addEventListener('scroll', handleFinanceViewportChange, true)
+
   exchangeRateBaseCurrency.value = financeHelper.getStoredFinanceCurrency()
   excludeFreeNodes.value = financeHelper.shouldExcludeFreeNodes()
 
   const { rates } = await financeHelper.getDailyExchangeRates()
   exchangeRates.value = rates
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleFinanceOutsideClick, true)
+  document.removeEventListener('keydown', handleFinanceKeydown)
+  window.removeEventListener('resize', handleFinanceViewportChange)
+  window.removeEventListener('scroll', handleFinanceViewportChange, true)
 })
 </script>
 
@@ -242,19 +318,19 @@ onMounted(async () => {
             <div class="flex items-start justify-between">
               <span class="text-xs font-medium tracking-wider text-muted-foreground">内存用量</span>
               <Icon
-                icon="tabler:cash" :width="20" :height="20"
+                icon="tabler:cpu-2" :width="20" :height="20"
                 class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
               />
             </div>
             <Transition v-bind="metricSwitchTransitionProps">
               <div
-                :key="`memory-${summaryTransitionKey}`" class="flex items-baseline gap-1 min-w-0"
+                :key="`memory-${summaryTransitionKey}`" class="flex items-baseline gap-1 min-w-0 tabular-nums"
                 :style="getMetricSwitchStyle(idx)"
               >
-                <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
+                <span class="text-lg md:text-2xl font-bold leading-none tracking-tight">
                   {{ formattedMemoryUsed.value }}
                 </span>
-                <span class="text-[11px] md:text-xs font-medium text-muted-foreground truncate">
+                <span class="text-[10px] md:text-xs font-medium text-muted-foreground truncate">
                   {{ formattedMemoryUsed.unit }} / {{ formattedMemoryTotal.value }} {{ formattedMemoryTotal.unit }}
                 </span>
               </div>
@@ -280,12 +356,12 @@ onMounted(async () => {
             </div>
             <Transition v-bind="metricSwitchTransitionProps">
               <div
-                :key="`disk-${summaryTransitionKey}`" class="flex items-baseline gap-1 min-w-0"
+                :key="`disk-${summaryTransitionKey}`" class="flex items-baseline gap-1 min-w-0 tabular-nums"
                 :style="getMetricSwitchStyle(idx)"
               >
-                <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedDiskUsed.value
+                <span class="text-lg md:text-2xl font-bold leading-none tracking-tight">{{ formattedDiskUsed.value
                 }}</span>
-                <span class="text-[11px] md:text-xs font-medium text-muted-foreground truncate">
+                <span class="text-[10px] md:text-xs font-medium text-muted-foreground truncate">
                   {{ formattedDiskUsed.unit }} / {{ formattedDiskTotal.value }} {{ formattedDiskTotal.unit }}
                 </span>
               </div>
@@ -296,13 +372,15 @@ onMounted(async () => {
         <!-- 剩余价值 -->
         <div
           v-else-if="cardType === 'finance'"
+          :ref="setFinanceTriggerEl"
           class="relative w-full h-full"
           :class="getCardPositionClass(idx)"
+          title="点击查看财务明细与汇率"
         >
           <CardX
             hoverable
-            class="group h-full backdrop-blur-xl backdrop-saturate-150 bg-background/40 border-none hover:bg-background/60 ring-1 ring-foreground/[0.06] shadow-sm rounded-lg transition-all glass-hover-blur"
-            content-class="h-full !p-3" @click="openFinanceCard = !openFinanceCard"
+            class="group h-full cursor-pointer backdrop-blur-xl backdrop-saturate-150 bg-background/40 border-none hover:bg-background/60 ring-1 ring-foreground/[0.06] shadow-sm rounded-lg transition-all glass-hover-blur"
+            content-class="h-full !p-3" @click="toggleFinanceCard"
           >
             <div class="flex h-full flex-col justify-between gap-1">
               <div class="flex items-start justify-between">
@@ -315,10 +393,10 @@ onMounted(async () => {
               <Transition v-bind="metricSwitchTransitionProps">
                 <div
                   :key="`remaining-value-${summaryTransitionKey}`"
-                  class="flex items-baseline gap-1 min-w-0"
+                  class="flex items-baseline gap-1 min-w-0 tabular-nums"
                   :style="getMetricSwitchStyle(idx)"
                 >
-                  <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
+                  <span class="text-lg md:text-2xl font-bold leading-none tracking-tight">
                     {{ formattedRemainingValue.symbol }}{{ formattedRemainingValue.value }}
                   </span>
                   <span class="block cursor-help truncate text-[11px] md:text-xs font-medium text-muted-foreground">
@@ -328,61 +406,76 @@ onMounted(async () => {
               </Transition>
             </div>
           </CardX>
-          <CardX
-            hoverable
-            class="absolute top-0 left-1/2 -translate-x-[50%] -translate-y-[25%] z-20 w-[260%] max-w-88 h-42 group bg-background/40 rounded-lg shadow-xl border-none backdrop-blur-xl backdrop-saturate-150 ring-1 ring-foreground/[0.06] transition-all"
-            :class="openFinanceCard ? 'opacity-100 scale-100  -translate-y-[5%]' : 'opacity-0 pointer-events-none scale-50'"
-            content-class="h-full !p-4" @click="openFinanceCard = false"
-          >
-            <div class="flex h-full min-w-0 flex-col overflow-x-hidden overflow-y-auto">
-              <div class="shrink-0 grid grid-cols-3 gap-1">
-                <div v-for="item in financeSummaryItems" :key="item.label" class="min-w-0">
-                  <div class="flex items-center text-xs font-medium text-muted-foreground">
-                    {{ item.label }}
+          <Teleport to="body">
+            <Transition
+              enter-active-class="transition-all duration-150 ease-out"
+              enter-from-class="opacity-0 scale-95 -translate-y-1"
+              enter-to-class="opacity-100 scale-100 translate-y-0"
+              leave-active-class="transition-all duration-100 ease-in"
+              leave-from-class="opacity-100 scale-100 translate-y-0"
+              leave-to-class="opacity-0 scale-95 -translate-y-1"
+            >
+              <div
+                v-if="openFinanceCard"
+                :ref="setFinancePopupEl"
+                class="fixed z-50"
+                :style="financePopupStyle"
+              >
+                <CardX
+                  hoverable
+                  class="group bg-popover/90 rounded-lg shadow-xl border-none backdrop-blur-xl backdrop-saturate-150 ring-1 ring-foreground/[0.08] transition-all"
+                  content-class="!p-4" @click="openFinanceCard = false"
+                >
+                  <div class="flex min-w-0 flex-col gap-3 overflow-x-hidden overflow-y-auto">
+                    <div class="shrink-0 grid grid-cols-3 gap-2">
+                      <div v-for="item in financeSummaryItems" :key="item.label" class="min-w-0">
+                        <div class="flex items-center text-xs font-medium text-muted-foreground">
+                          {{ item.label }}
+                        </div>
+                        <div class="flex min-w-0 mt-1 items-baseline truncate tabular-nums">
+                          <span class="shrink-0 text-xs mr-0.5 font-semibold leading-none text-muted-foreground">
+                            {{ item.symbol }}
+                          </span>
+                          <span class="text-sm md:text-lg font-bold leading-none tracking-tight">
+                            {{ item.value }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="shrink-0 flex flex-col gap-1.5 border-t border-border/50 pt-2.5">
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-1 text-xs font-medium tracking-wider text-muted-foreground">
+                          今日汇率
+                        </div>
+                        <select
+                          :value="exchangeRateBaseCurrency"
+                          class="shrink-0 rounded-sm border border-border/70 bg-background/70 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus:text-foreground"
+                          aria-label="切换汇率基准币种" @click.stop @change.stop="setExchangeRateBaseCurrency"
+                        >
+                          <option v-for="currency in financeRateCurrencies" :key="currency" :value="currency">
+                            {{ currency }}
+                          </option>
+                        </select>
+                      </div>
+                      <div class="grid grid-cols-2 gap-y-1 gap-x-4 tabular-nums">
+                        <div
+                          v-for="row in exchangeRateRows" :key="row.currency"
+                          class="text-[11px] flex items-center justify-between"
+                        >
+                          <span class="text-muted-foreground">
+                            {{ row.currency }}
+                          </span>
+                          <span>
+                            {{ row.targetSymbol }}{{ row.rate }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div class="flex min-w-0 mt-1 items-baseline truncate">
-                    <span class="shrink-0 text-xs mr-0.5 font-semibold leading-none text-muted-foreground">
-                      {{ item.symbol }}
-                    </span>
-                    <span class=" text-sm md:text-lg font-bold leading-none tracking-tight">
-                      {{ item.value }}
-                    </span>
-                  </div>
-                </div>
+                </CardX>
               </div>
-              <div class="flex-1" />
-              <div class="shrink-0 flex flex-col flex-1">
-                <div class="flex mb-1 items-center justify-between gap-2">
-                  <div class="flex items-center gap-1 text-xs font-medium tracking-wider text-muted-foreground">
-                    今日汇率
-                  </div>
-                  <select
-                    :value="exchangeRateBaseCurrency"
-                    class="shrink-0 rounded-sm border border-border/70 bg-background/70 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus:text-foreground"
-                    aria-label="切换汇率基准币种" @click.stop @change.stop="setExchangeRateBaseCurrency"
-                  >
-                    <option v-for="currency in financeRateCurrencies" :key="currency" :value="currency">
-                      {{ currency }}
-                    </option>
-                  </select>
-                </div>
-                <div class="flex-1" />
-                <div class="grid grid-cols-2 gap-y-1 gap-x-4">
-                  <div
-                    v-for="row in exchangeRateRows" :key="row.currency"
-                    class="text-[11px] flex items-center justify-between"
-                  >
-                    <span class="text-muted-foreground">
-                      {{ row.currency }}
-                    </span>
-                    <span>
-                      {{ row.targetSymbol }}{{ row.rate }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardX>
+            </Transition>
+          </Teleport>
         </div>
 
         <!-- 累计流量 -->
@@ -408,10 +501,10 @@ onMounted(async () => {
             >
               <Transition v-bind="metricSwitchTransitionProps">
                 <div
-                  :key="`traffic-${summaryTransitionKey}`" class="flex items-baseline gap-1"
+                  :key="`traffic-${summaryTransitionKey}`" class="flex items-baseline gap-1 tabular-nums"
                   :style="getMetricSwitchStyle(idx)"
                 >
-                  <span class="inline-block text-md md:text-2xl font-bold leading-none tracking-tight">
+                  <span class="inline-block text-lg md:text-2xl font-bold leading-none tracking-tight">
                     {{ totalTrafficTooltip.value }}
                   </span>
                   <span class="inline-block text-[11px] md:text-xs font-medium text-muted-foreground">
@@ -441,10 +534,10 @@ onMounted(async () => {
             </div>
             <Transition v-bind="metricSwitchTransitionProps">
               <div
-                :key="`speed-up-${summaryTransitionKey}`" class="flex items-baseline gap-1"
+                :key="`speed-up-${summaryTransitionKey}`" class="flex items-baseline gap-1 tabular-nums"
                 :style="getMetricSwitchStyle(idx)"
               >
-                <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedSpeedUp.value
+                <span class="text-lg md:text-2xl font-bold leading-none tracking-tight">{{ formattedSpeedUp.value
                 }}</span>
                 <span class="text-[11px] md:text-xs font-medium text-muted-foreground">{{ formattedSpeedUp.unit }}</span>
               </div>
@@ -470,10 +563,10 @@ onMounted(async () => {
             </div>
             <Transition v-bind="metricSwitchTransitionProps">
               <div
-                :key="`speed-down-${summaryTransitionKey}`" class="flex items-baseline gap-1"
+                :key="`speed-down-${summaryTransitionKey}`" class="flex items-baseline gap-1 tabular-nums"
                 :style="getMetricSwitchStyle(idx)"
               >
-                <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
+                <span class="text-lg md:text-2xl font-bold leading-none tracking-tight">
                   {{ formattedSpeedDown.value }}
                 </span>
                 <span class="text-[11px] md:text-xs font-medium text-muted-foreground">{{ formattedSpeedDown.unit
@@ -506,10 +599,10 @@ onMounted(async () => {
             >
               <Transition v-bind="metricSwitchTransitionProps">
                 <div
-                  :key="`connections-${summaryTransitionKey}`" class="flex items-baseline gap-1"
+                  :key="`connections-${summaryTransitionKey}`" class="flex items-baseline gap-1 tabular-nums"
                   :style="getMetricSwitchStyle(idx)"
                 >
-                  <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
+                  <span class="text-lg md:text-2xl font-bold leading-none tracking-tight">
                     {{ formatNumber(totalConnections.total) }}
                   </span>
                   <span class="text-[11px] md:text-xs font-medium text-muted-foreground">TCP+UDP</span>
@@ -539,10 +632,10 @@ onMounted(async () => {
               <Transition v-bind="metricSwitchTransitionProps">
                 <div
                   :key="`regions-${summaryTransitionKey}`"
-                  class="flex items-baseline gap-1"
+                  class="flex items-baseline gap-1 tabular-nums"
                   :style="getMetricSwitchStyle(idx)"
                 >
-                  <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
+                  <span class="text-lg md:text-2xl font-bold leading-none tracking-tight">
                     {{ regionSummary }}
                   </span>
                   <span class="text-[11px] md:text-xs font-medium text-muted-foreground">个</span>

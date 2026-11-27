@@ -176,9 +176,49 @@ const remainingTimeValueClass = computed(() => {
   return 'text-emerald-600 dark:text-emerald-400'
 })
 
+const hasFinanceInfo = computed(() => {
+  if (!data.value)
+    return false
+  const hasPrice = Number(data.value.price) > 0
+  const expiryYear = data.value.expired_at ? new Date(data.value.expired_at).getFullYear() : 0
+  return hasPrice || expiryYear > 1970
+})
+
 const metricCards = computed<MetricCard[]>(() => {
   if (!data.value)
     return []
+
+  if (!hasFinanceInfo.value) {
+    const cpuVal = (data.value.cpu ?? 0).toFixed(1)
+    const memVal = ((data.value.ram ?? 0) / (data.value.mem_total || 1) * 100).toFixed(1)
+    const diskVal = ((data.value.disk ?? 0) / (data.value.disk_total || 1) * 100).toFixed(1)
+    return [
+      {
+        label: 'CPU 负载',
+        value: cpuVal,
+        unit: '%',
+        icon: 'tabler:cpu',
+      },
+      {
+        label: '内存占用',
+        value: memVal,
+        unit: '%',
+        icon: 'tabler:cpu-2',
+      },
+      {
+        label: '硬盘占用',
+        value: diskVal,
+        unit: '%',
+        icon: 'tabler:database',
+      },
+      {
+        label: '在线时长',
+        value: data.value.online ? formatUptimeWithFormat(data.value.uptime ?? 0, 'hour') : '离线',
+        icon: 'tabler:clock',
+        valueClass: data.value.online ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive',
+      },
+    ]
+  }
 
   const nodePrice = splitMetricValue(nodePriceText.value)
   const monthlyAverageCost = splitMetricValue(monthlyAverageCostText.value)
@@ -215,23 +255,23 @@ const metricCards = computed<MetricCard[]>(() => {
 })
 
 const hardwareInfo = computed<InfoItem[]>(() => [
-  { label: 'CPU', value: data.value ? `${data.value.cpu_name} (x${data.value.cpu_cores})` : '-', icon: 'icon-park-outline:cpu' },
-  { label: '架构', value: data.value?.arch ?? '-', icon: 'icon-park-outline:application-two' },
-  { label: '虚拟化', value: data.value?.virtualization ?? '-', icon: 'icon-park-outline:server' },
-  { label: 'GPU', value: data.value?.gpu_name || '-', icon: 'icon-park-outline:video-one' },
+  { label: 'CPU', value: data.value ? `${data.value.cpu_name} (x${data.value.cpu_cores})` : '-', icon: 'tabler:cpu' },
+  { label: '架构', value: data.value?.arch ?? '-', icon: 'tabler:binary-tree-2' },
+  { label: '虚拟化', value: data.value?.virtualization ?? '-', icon: 'tabler:server-2' },
+  { label: 'GPU', value: data.value?.gpu_name || '-', icon: 'tabler:device-desktop-analytics' },
 ])
 
 const systemInfo = computed<InfoItem[]>(() => [
-  { label: '操作系统', value: data.value?.os ?? '-', icon: 'icon-park-outline:computer' },
-  { label: '内核版本', value: data.value?.kernel_version ?? '-', icon: 'icon-park-outline:code' },
-  { label: '运行时间', value: formatUptime(data.value?.uptime ?? 0), icon: 'icon-park-outline:timer' },
-  { label: '最后上报', value: formatDateTime(data.value?.time), icon: 'icon-park-outline:time' },
+  { label: '操作系统', value: data.value?.os ?? '-', icon: 'tabler:device-desktop' },
+  { label: '内核版本', value: data.value?.kernel_version ?? '-', icon: 'tabler:code' },
+  { label: '运行时间', value: formatUptime(data.value?.uptime ?? 0), icon: 'tabler:clock' },
+  { label: '最后上报', value: formatDateTime(data.value?.time), icon: 'tabler:clock-check' },
 ])
 
 const storageInfo = computed<InfoItem[]>(() => [
-  { label: '内存', value: formatBytes(data.value?.mem_total ?? 0), icon: 'icon-park-outline:memory' },
-  { label: '内存交换', value: formatBytes(data.value?.swap_total ?? 0), icon: 'icon-park-outline:switch' },
-  { label: '硬盘', value: formatBytes(data.value?.disk_total ?? 0), icon: 'icon-park-outline:hard-disk' },
+  { label: '内存', value: formatBytes(data.value?.mem_total ?? 0), icon: 'tabler:cpu-2' },
+  { label: '内存交换', value: formatBytes(data.value?.swap_total ?? 0), icon: 'tabler:arrows-exchange' },
+  { label: '硬盘', value: formatBytes(data.value?.disk_total ?? 0), icon: 'tabler:database' },
 ])
 
 const trafficUsed = computed(() => {
@@ -343,7 +383,7 @@ const trafficProgressStyle = computed(() => ({
             </div>
             <div class="min-w-0 space-y-1">
               <div
-                class="flex min-w-0 items-baseline gap-1 truncate font-semibold leading-none"
+                class="flex min-w-0 items-baseline gap-1 truncate font-semibold leading-none tabular-nums"
                 :class="item.valueClass"
               >
                 <span class="truncate text-base sm:text-2xl">{{ item.value }}</span>
@@ -424,37 +464,40 @@ const trafficProgressStyle = computed(() => ({
           class="group h-full backdrop-blur-xl backdrop-saturate-150 bg-background/40 border-none hover:bg-background/60 transition-all rounded-lg ring-1 ring-foreground/[0.06] shadow-sm glass-hover-blur"
           content-class="pt-0"
         >
-          <div class="gap-3 grid grid-cols-2">
+          <div class="gap-3 grid grid-cols-1 sm:grid-cols-2">
             <div class="relative min-w-0 overflow-hidden rounded-sm bg-slate-500/5 p-2">
               <div
                 v-if="hasTrafficLimit"
                 class="absolute inset-y-0 left-0 rounded-sm bg-primary/10 pointer-events-none transition-[width] duration-300 ease-out"
                 :style="trafficProgressStyle"
               />
-              <div class="relative flex flex-col gap-1.5">
-                <div class="flex gap-1 items-center text-muted-foreground">
-                  <Icon icon="icon-park-outline:transfer-data" :width="14" :height="14" />
+              <div class="relative flex flex-col gap-1.5 tabular-nums">
+                <div class="flex flex-wrap gap-1 items-center text-muted-foreground">
+                  <Icon icon="tabler:arrows-up-down" :width="14" :height="14" />
                   <span class="text-xs sm:text-sm">总流量</span>
                   <div class="flex-1" />
-                  <span class="hidden sm:block text-[11px] font-medium text-foreground/70">{{
-                    formatBytes(data?.net_total_up ?? 0) }} / {{ formatBytes(data?.net_total_down ?? 0) }}</span>
+                  <span class="text-[11px] font-medium text-foreground/70">↑ {{
+                    formatBytes(data?.net_total_up ?? 0) }} / ↓ {{ formatBytes(data?.net_total_down ?? 0) }}</span>
                 </div>
                 <span class="text-xs sm:text-sm break-all">
                   {{ trafficUsageText }}
                 </span>
               </div>
             </div>
-            <div class="min-w-0 flex flex-col gap-1 rounded-sm bg-slate-500/5 p-2">
+            <div class="min-w-0 flex flex-col gap-1 rounded-sm bg-slate-500/5 p-2 tabular-nums">
               <div class="flex gap-1 items-center text-muted-foreground">
-                <Icon icon="icon-park-outline:dashboard-one" :width="14" :height="14" />
+                <Icon icon="tabler:gauge" :width="14" :height="14" />
                 <span class="text-xs sm:text-sm">网络速率</span>
               </div>
-              <span class="text-xs sm:text-sm break-all flex flex-row flex-wrap items-center gap-1">
-                <Icon icon="tabler:chevron-up" width="12" height="12" />
-                {{ formatBytesPerSecond(data?.net_out ?? 0) }}
-                <span class="px-0.5" />
-                <Icon icon="tabler:chevron-down" width="12" height="12" />
-                {{ formatBytesPerSecond(data?.net_in ?? 0) }}
+              <span class="text-xs sm:text-sm break-all flex flex-row flex-wrap items-center gap-1.5">
+                <span class="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
+                  <Icon icon="tabler:chevron-up" width="12" height="12" />
+                  {{ formatBytesPerSecond(data?.net_out ?? 0) }}
+                </span>
+                <span class="inline-flex items-center gap-0.5 text-sky-600 dark:text-sky-400">
+                  <Icon icon="tabler:chevron-down" width="12" height="12" />
+                  {{ formatBytesPerSecond(data?.net_in ?? 0) }}
+                </span>
               </span>
             </div>
           </div>

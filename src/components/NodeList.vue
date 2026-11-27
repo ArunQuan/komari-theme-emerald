@@ -13,7 +13,7 @@ import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, 
 import { applyOfflineLast, applyPinnedFirst, getTrafficUsed, sortNodes } from '@/utils/nodeSortHelper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
-import { buildPriceTags, parseTags } from '@/utils/tagHelper'
+import { buildPriceTags, hasIPv4, hasIPv6, parseTags } from '@/utils/tagHelper'
 
 interface ColumnConfig {
   key: string
@@ -64,12 +64,26 @@ function handleSort(col: Pick<ColumnConfig, 'key' | 'label'> & { sortable?: bool
   if (col.sortable === false)
     return
   if (sortKey.value === col.key) {
-    sortDir.value = sortDir.value === 1 ? -1 : 1
+    if (sortDir.value === 1) {
+      sortDir.value = -1
+    }
+    else {
+      sortKey.value = ''
+      sortDir.value = 1
+    }
   }
   else {
     sortKey.value = col.key
     sortDir.value = 1
   }
+}
+
+function isIPv4Available(node: NodeData): boolean {
+  return hasIPv4(node.ipv4) || appStore.addressFamilyFlags[node.uuid]?.ipv4 === true
+}
+
+function isIPv6Available(node: NodeData): boolean {
+  return hasIPv6(node.ipv6) || appStore.addressFamilyFlags[node.uuid]?.ipv6 === true
 }
 
 const sortedNodes = computed(() => applyOfflineLast(applyPinnedFirst(sortNodes(props.nodes, sortKey.value, sortDir.value), appStore.pinnedNodes)))
@@ -215,10 +229,10 @@ function filterByTag(tag: string) {
             <template v-for="col in columns" :key="col.key">
               <!-- 在线状态指示器 -->
               <div v-if="col.key === 'status'" class="flex justify-center">
-                <div class="size-2 rounded-full relative" :class="[node.online ? 'bg-green-600' : 'bg-red-600']">
+                <div class="size-2 rounded-full relative" :class="[node.online ? 'bg-emerald-500' : 'bg-rose-500']">
                   <div
                     class="animate-ping absolute inset-0 rounded-full opacity-50"
-                    :class="[node.online ? 'bg-green-600' : 'bg-red-600']"
+                    :class="[node.online ? 'bg-emerald-500' : 'bg-rose-500']"
                   />
                 </div>
               </div>
@@ -228,9 +242,11 @@ function filterByTag(tag: string) {
                 <div class="flex gap-1 items-center text-xs font-semibold">
                   <img
                     v-if="hasRegion(node.region)" :src="getFlagSrc(node.region)"
-                    :alt="getRegionDisplayName(node.region)" class="size-5 rounded-sm"
+                    :alt="getRegionDisplayName(node.region)" class="size-5 rounded-sm shrink-0"
                   >
                   <span class="truncate">{{ node.name }}</span>
+                  <span v-if="isIPv4Available(node)" title="IPv4 可用" class="shrink-0 rounded border border-sky-500/25 bg-sky-500/15 px-1 py-0.5 text-[9px] font-medium leading-none text-sky-700 dark:text-sky-300">v4</span>
+                  <span v-if="isIPv6Available(node)" title="IPv6 可用" class="shrink-0 rounded border border-violet-500/25 bg-violet-500/15 px-1 py-0.5 text-[9px] font-medium leading-none text-violet-700 dark:text-violet-300">v6</span>
                   <button
                     type="button" :aria-label="appStore.isNodePinned(node.uuid) ? '取消置顶' : '置顶'"
                     class="shrink-0 flex items-center transition-[color,opacity]"
@@ -283,7 +299,7 @@ function filterByTag(tag: string) {
               </div>
 
               <!-- CPU -->
-              <div v-else-if="col.key === 'cpu'" class="min-w-0">
+              <div v-else-if="col.key === 'cpu'" class="min-w-0 tabular-nums">
                 <div class="space-y-1">
                   <div class="text-[10px] text-muted-foreground flex items-center justify-between gap-1">
                     <span class="shrink-0">{{ (node.cpu ?? 0).toFixed(1) }}%</span>
@@ -296,7 +312,7 @@ function filterByTag(tag: string) {
               </div>
 
               <!-- 内存 -->
-              <div v-else-if="col.key === 'mem'" class="min-w-0">
+              <div v-else-if="col.key === 'mem'" class="min-w-0 tabular-nums">
                 <div class="space-y-1">
                   <div class="text-[10px] text-muted-foreground flex items-center justify-between gap-1">
                     <span class="shrink-0">{{ ((node.ram ?? 0) / (node.mem_total || 1) * 100).toFixed(1) }}%</span>
@@ -312,7 +328,7 @@ function filterByTag(tag: string) {
               </div>
 
               <!-- 硬盘 -->
-              <div v-else-if="col.key === 'disk'" class="min-w-0">
+              <div v-else-if="col.key === 'disk'" class="min-w-0 tabular-nums">
                 <div class="space-y-1">
                   <div class="text-[10px] text-muted-foreground flex items-center justify-between gap-1">
                     <span class="shrink-0">{{ ((node.disk ?? 0) / (node.disk_total || 1) * 100).toFixed(1) }}%</span>
@@ -328,7 +344,7 @@ function filterByTag(tag: string) {
               </div>
 
               <!-- 流量 -->
-              <div v-else-if="col.key === 'traffic'" class="min-w-0">
+              <div v-else-if="col.key === 'traffic'" class="min-w-0 tabular-nums">
                 <DataTooltip placement="top" class="flex items-center gap-2" content-class="mb-1.5">
                   <div class="space-y-1 w-full">
                     <div class="text-[10px] text-muted-foreground flex items-center justify-between gap-1">
@@ -364,12 +380,12 @@ function filterByTag(tag: string) {
 
               <!-- 速率 -->
               <div v-else-if="col.key === 'rate'">
-                <div class="text-[10px] flex flex-col ">
-                  <span class="text-green-600 flex flex-row gap-1 items-center">
+                <div class="text-[10px] flex flex-col tabular-nums">
+                  <span class="text-emerald-600 dark:text-emerald-400 flex flex-row gap-1 items-center">
                     <Icon icon="tabler:chevron-up" width="12" height="12" />
                     {{ formatBytesPerSecond(node.net_out ?? 0) }}
                   </span>
-                  <span class="text-blue-600 flex flex-row gap-1 items-center">
+                  <span class="text-sky-600 dark:text-sky-400 flex flex-row gap-1 items-center">
                     <Icon icon="tabler:chevron-down" width="12" height="12" />
                     {{ formatBytesPerSecond(node.net_in ?? 0) }}
                   </span>
@@ -405,7 +421,7 @@ function filterByTag(tag: string) {
       <button
         v-for="col in mobileSortOptions" :key="col.key" type="button"
         class="shrink-0 h-6 px-2 rounded-md text-[11px] backdrop-blur-xl bg-background/40 ring-1 ring-foreground/[0.06] transition-colors"
-        :class="[sortKey === col.key ? 'text-green-600 bg-background/70' : 'text-muted-foreground']"
+        :class="[sortKey === col.key ? 'text-emerald-600 dark:text-emerald-400 bg-background/70' : 'text-muted-foreground']"
         @click="handleSort(col)"
       >
         {{ col.label }}{{ sortKey === col.key ? (sortDir === 1 ? ' ↑' : ' ↓') : '' }}
@@ -423,17 +439,17 @@ function filterByTag(tag: string) {
         v-for="(node, index) in sortedNodes"
         :key="getRowTransitionKey(node)"
         class="relative p-2.5 cursor-pointer bg-background/30 rounded-lg backdrop-blur-xl shadow-[0_0_0_2px] shadow-transparent active:bg-background/60 transition-all"
-        :class="[!node.online && '!shadow-red-600/10']"
+        :class="[!node.online && '!shadow-rose-600/10']"
         :style="getRowTransitionStyle(index)"
         @click="handleClick(node)"
       >
         <div class="flex flex-col gap-1.5" :class="[!node.online && 'blur-sm opacity-30']">
           <!-- 第一行：状态 + 旗帜 + 系统 + 名称 | 实时速率 -->
           <div class="flex items-center gap-2 min-w-0">
-            <div class="size-2 rounded-full relative shrink-0" :class="[node.online ? 'bg-green-600' : 'bg-red-600']">
+            <div class="size-2 rounded-full relative shrink-0" :class="[node.online ? 'bg-emerald-500' : 'bg-rose-500']">
               <div
                 class="animate-ping absolute inset-0 rounded-full opacity-50"
-                :class="[node.online ? 'bg-green-600' : 'bg-red-600']"
+                :class="[node.online ? 'bg-emerald-500' : 'bg-rose-500']"
               />
             </div>
             <img
@@ -442,6 +458,8 @@ function filterByTag(tag: string) {
             >
             <img :src="getOSImage(node.os)" :alt="getOSName(node.os)" class="size-4 shrink-0">
             <span class="truncate text-xs font-semibold flex-1 min-w-0">{{ node.name }}</span>
+            <span v-if="isIPv4Available(node)" title="IPv4 可用" class="shrink-0 rounded border border-sky-500/25 bg-sky-500/15 px-1 py-0.5 text-[9px] font-medium leading-none text-sky-700 dark:text-sky-300">v4</span>
+            <span v-if="isIPv6Available(node)" title="IPv6 可用" class="shrink-0 rounded border border-violet-500/25 bg-violet-500/15 px-1 py-0.5 text-[9px] font-medium leading-none text-violet-700 dark:text-violet-300">v6</span>
             <button
               type="button" :aria-label="appStore.isNodePinned(node.uuid) ? '取消置顶' : '置顶'"
               class="shrink-0 flex items-center p-0.5"
@@ -450,12 +468,12 @@ function filterByTag(tag: string) {
             >
               <Icon :icon="appStore.isNodePinned(node.uuid) ? 'tabler:star-filled' : 'tabler:star'" width="13" height="13" />
             </button>
-            <span class="text-[10px] shrink-0 flex items-center gap-1.5">
-              <span class="text-green-600 flex items-center gap-0.5">
+            <span class="text-[10px] shrink-0 flex items-center gap-1.5 tabular-nums">
+              <span class="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
                 <Icon icon="tabler:chevron-up" width="12" height="12" />
                 {{ formatBytesPerSecond(node.net_out ?? 0) }}
               </span>
-              <span class="text-blue-600 flex items-center gap-0.5">
+              <span class="text-sky-600 dark:text-sky-400 flex items-center gap-0.5">
                 <Icon icon="tabler:chevron-down" width="12" height="12" />
                 {{ formatBytesPerSecond(node.net_in ?? 0) }}
               </span>

@@ -71,7 +71,7 @@ const chartThemeColors = computed(() => ({
 // 通用 Tooltip 配置
 const baseTooltipConfig = computed(() => ({
   trigger: 'axis' as const,
-  confine: false,
+  confine: true,
   backgroundColor: chartThemeColors.value.tooltipBg,
   borderColor: 'transparent',
   borderWidth: 0,
@@ -524,10 +524,10 @@ const cpuChartOption = computed(() => ({
       for (const item of p) {
         const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${item.color};margin-right:8px;flex-shrink:0"></span>`
         if (item.seriesName === 'CPU') {
-          html += `<div style="display:flex;align-items:center">${colorDot}<span>CPU</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${item.value?.toFixed(1) ?? '-'}%</span></div>`
+          html += `<div style="display:flex;align-items:center">${colorDot}<span>CPU</span><span style="margin-left:auto;padding-left:16px;font-weight:600;font-variant-numeric:tabular-nums">${item.value?.toFixed(1) ?? '-'}%</span></div>`
         }
         else if (item.seriesName === '负载') {
-          html += `<div style="display:flex;align-items:center">${colorDot}<span>系统负载</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${item.value?.toFixed(2) ?? '-'}</span></div>`
+          html += `<div style="display:flex;align-items:center">${colorDot}<span>系统负载</span><span style="margin-left:auto;padding-left:16px;font-weight:600;font-variant-numeric:tabular-nums">${item.value?.toFixed(2) ?? '-'}</span></div>`
         }
       }
       html += '</div>'
@@ -619,10 +619,10 @@ const memoryChartOption = computed(() => ({
       for (const item of p) {
         const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${item.color};margin-right:8px;flex-shrink:0"></span>`
         if (item.seriesName === 'RAM') {
-          html += `<div style="display:flex;align-items:center">${colorDot}<span>RAM</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${formatBytes(ramUsed)} (${ramPercent}%)</span></div>`
+          html += `<div style="display:flex;align-items:center">${colorDot}<span>RAM</span><span style="margin-left:auto;padding-left:16px;font-weight:600;font-variant-numeric:tabular-nums">${formatBytes(ramUsed)} (${ramPercent}%)</span></div>`
         }
         else if (item.seriesName === 'Swap') {
-          html += `<div style="display:flex;align-items:center">${colorDot}<span>Swap</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${formatBytes(swapUsed)} (${swapPercent}%)</span></div>`
+          html += `<div style="display:flex;align-items:center">${colorDot}<span>Swap</span><span style="margin-left:auto;padding-left:16px;font-weight:600;font-variant-numeric:tabular-nums">${formatBytes(swapUsed)} (${swapPercent}%)</span></div>`
         }
       }
       html += '</div>'
@@ -699,7 +699,7 @@ const diskChartOption = computed(() => ({
 
       let html = `<div style="font-weight:600;margin-bottom:6px;color:${chartThemeColors.value.textSecondary}">${timeStr}</div>`
       html += '<div style="display:flex;flex-direction:column;gap:4px">'
-      html += `<div style="display:flex;align-items:center">${colorDot}<span>磁盘已用</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${formatBytes(diskUsed)} (${diskPercent}%)</span></div>`
+      html += `<div style="display:flex;align-items:center">${colorDot}<span>磁盘已用</span><span style="margin-left:auto;padding-left:16px;font-weight:600;font-variant-numeric:tabular-nums">${formatBytes(diskUsed)} (${diskPercent}%)</span></div>`
       html += '</div>'
       return html
     },
@@ -764,7 +764,7 @@ const networkChartOption = computed(() => ({
       for (const item of p) {
         const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${item.color};margin-right:8px;flex-shrink:0"></span>`
         const label = item.seriesName === '下载' ? '↓ 下载' : '↑ 上传'
-        html += `<div style="display:flex;align-items:center">${colorDot}<span>${label}</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${formatBytes(item.value)}/s</span></div>`
+        html += `<div style="display:flex;align-items:center">${colorDot}<span>${label}</span><span style="margin-left:auto;padding-left:16px;font-weight:600;font-variant-numeric:tabular-nums">${formatBytes(item.value)}/s</span></div>`
       }
       html += '</div>'
       return html
@@ -834,7 +834,7 @@ const connectionsChartOption = computed(() => ({
       for (const item of p) {
         const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${item.color};margin-right:8px;flex-shrink:0"></span>`
         const displayValue = item.value != null ? Math.round(item.value) : '-'
-        html += `<div style="display:flex;align-items:center">${colorDot}<span>${item.seriesName}</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${displayValue}</span></div>`
+        html += `<div style="display:flex;align-items:center">${colorDot}<span>${item.seriesName}</span><span style="margin-left:auto;padding-left:16px;font-weight:600;font-variant-numeric:tabular-nums">${displayValue}</span></div>`
       }
       html += '</div>'
       return html
@@ -904,7 +904,7 @@ const processChartOption = computed(() => ({
 
       let html = `<div style="font-weight:600;margin-bottom:6px;color:${chartThemeColors.value.textSecondary}">${timeStr}</div>`
       html += '<div style="display:flex;flex-direction:column;gap:4px">'
-      html += `<div style="display:flex;align-items:center">${colorDot}<span>进程数</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${displayValue}</span></div>`
+      html += `<div style="display:flex;align-items:center">${colorDot}<span>进程数</span><span style="margin-left:auto;padding-left:16px;font-weight:600;font-variant-numeric:tabular-nums">${displayValue}</span></div>`
       html += '</div>'
       return html
     },
@@ -990,7 +990,7 @@ onMounted(() => {
       <TabsList class="h-8 backdrop-blur-xl backdrop-saturate-150 bg-background/40 pointer-events-auto rounded-lg ring-1 ring-foreground/[0.06] shadow-sm">
         <TabsTrigger
           v-for="view in availableViews" :key="view.label" :value="view.label"
-          class="h-6.5 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm"
+          class="h-6.5 text-xs border-none data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 shadow-none rounded-sm"
         >
           {{ view.label }}
         </TabsTrigger>
@@ -1013,7 +1013,7 @@ onMounted(() => {
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">CPU</span>
-              <div v-if="latestStatus?.cpu != null" class="text-xs flex gap-0.5 items-baseline">
+              <div v-if="latestStatus?.cpu != null" class="text-xs flex gap-0.5 items-baseline tabular-nums">
                 <span>{{ latestStatus.cpu.toFixed(1) }}</span>
                 <span>%</span>
               </div>
@@ -1030,7 +1030,7 @@ onMounted(() => {
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">内存</span>
-              <div class="text-xs flex gap-1 items-baseline">
+              <div class="text-xs flex gap-1 items-baseline tabular-nums">
                 <template v-if="latestStatus?.ram != null">
                   <span>{{ formatBytesSplit(latestStatus.ram).value }}</span>
                   <span>{{ formatBytesSplit(latestStatus.ram).unit }}</span>
@@ -1056,7 +1056,7 @@ onMounted(() => {
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">磁盘</span>
-              <div class="text-xs flex gap-1 items-baseline">
+              <div class="text-xs flex gap-1 items-baseline tabular-nums">
                 <template v-if="latestStatus?.disk != null">
                   <span>{{ formatBytesSplit(latestStatus.disk).value }}</span>
                   <span>{{ formatBytesSplit(latestStatus.disk).unit }}</span>
@@ -1081,8 +1081,8 @@ onMounted(() => {
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">网络</span>
-              <div class="text-xs flex gap-2 items-baseline">
-                <span class="flex flex-row items-center justify-center gap-0.5">
+              <div class="text-xs flex gap-2 items-baseline tabular-nums">
+                <span class="flex flex-row items-center justify-center gap-0.5 text-emerald-600 dark:text-emerald-400">
                   <Icon icon="tabler:chevron-up" width="12" height="12" />
                   <template v-if="latestStatus?.net_out != null">
                     {{ formatBytesSplit(latestStatus.net_out).value }}
@@ -1090,7 +1090,7 @@ onMounted(() => {
                   </template>
                   <template v-else>-</template>
                 </span>
-                <span class="flex flex-row items-center justify-center gap-0.5">
+                <span class="flex flex-row items-center justify-center gap-0.5 text-sky-600 dark:text-sky-400">
                   <Icon icon="tabler:chevron-down" width="12" height="12" />
                   <template v-if="latestStatus?.net_in != null">
                     {{ formatBytesSplit(latestStatus.net_in).value }}
@@ -1111,7 +1111,7 @@ onMounted(() => {
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">连接</span>
-              <div class="text-xs flex gap-1 items-baseline">
+              <div class="text-xs flex gap-1 items-baseline tabular-nums">
                 <span>TCP: {{ latestStatus?.connections ?? '-' }}</span>
                 <span>·</span>
                 <span>UDP: {{ latestStatus?.connections_udp ?? '-' }}</span>
@@ -1128,7 +1128,7 @@ onMounted(() => {
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">进程</span>
-              <span class="text-xs">
+              <span class="text-xs tabular-nums">
                 {{ latestStatus?.process ?? '-' }}
               </span>
             </div>
