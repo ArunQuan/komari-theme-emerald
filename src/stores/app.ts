@@ -6,6 +6,7 @@ import { computed, ref, watch } from 'vue'
 
 export type ThemeMode = 'auto' | 'light' | 'dark'
 export type ShaderType = 'bubbles' | 'liquid' | 'none'
+export type PageWidthMode = 'wide' | 'standard' | 'full'
 type Lang = 'zh-CN' | 'en-US'
 type NodeViewMode = 'card' | 'list'
 type RpcTransportMode = 'websocket' | 'http'
@@ -126,6 +127,51 @@ const useAppStore = defineStore('app', () => {
   function isValidViewMode(value: string | null): value is NodeViewMode {
     return value === 'card' || value === 'list'
   }
+
+  // 页面宽度模式（默认 wide：自适应宽屏，上限 1920px）
+  const storedPageWidthMode = useStorageAsync<PageWidthMode | null>('pageWidthMode', null, localStorage)
+
+  function isValidPageWidthMode(value: unknown): value is PageWidthMode {
+    return value === 'wide' || value === 'standard' || value === 'full'
+  }
+
+  const defaultPageWidthMode = computed<PageWidthMode>(() => {
+    const mode = publicSettings.value?.theme_settings?.pageWidthMode
+    return isValidPageWidthMode(mode) ? mode : 'wide'
+  })
+
+  const pageWidthMode = computed<PageWidthMode>({
+    get: () => {
+      if (isValidPageWidthMode(storedPageWidthMode.value)) {
+        return storedPageWidthMode.value
+      }
+      return defaultPageWidthMode.value
+    },
+    set: (val) => {
+      storedPageWidthMode.value = val
+    },
+  })
+
+  function cyclePageWidthMode() {
+    const nextMap: Record<PageWidthMode, PageWidthMode> = {
+      wide: 'full',
+      full: 'standard',
+      standard: 'wide',
+    }
+    pageWidthMode.value = nextMap[pageWidthMode.value]
+  }
+
+  const containerWidthClass = computed<string>(() => {
+    switch (pageWidthMode.value) {
+      case 'standard':
+        return 'w-full max-w-[1280px] mx-auto'
+      case 'full':
+        return 'w-full max-w-full lg:max-w-[96vw] mx-auto'
+      case 'wide':
+      default:
+        return 'w-full max-w-full lg:max-w-[min(94vw,1920px)] mx-auto'
+    }
+  })
 
   // 当前实际使用的视图模式
   const nodeViewMode = computed<NodeViewMode>({
@@ -452,6 +498,10 @@ const useAppStore = defineStore('app', () => {
     lang,
     nodeSelectedGroup,
     nodeViewMode,
+    pageWidthMode,
+    defaultPageWidthMode,
+    containerWidthClass,
+    cyclePageWidthMode,
     pinnedNodes,
     togglePinnedNode,
     isNodePinned,

@@ -1020,7 +1020,7 @@ onMounted(() => {
               <span v-else>-</span>
             </div>
           </template>
-          <div class="h-48">
+          <div class="h-48 xl:h-52">
             <VChart :option="cpuChartOption" autoresize />
           </div>
         </CardX>
@@ -1046,7 +1046,7 @@ onMounted(() => {
               </div>
             </div>
           </template>
-          <div class="h-48">
+          <div class="h-48 xl:h-52">
             <VChart :option="memoryChartOption" autoresize />
           </div>
         </CardX>
@@ -1071,7 +1071,7 @@ onMounted(() => {
               </div>
             </div>
           </template>
-          <div class="h-48">
+          <div class="h-48 xl:h-52">
             <VChart :option="diskChartOption" autoresize />
           </div>
         </CardX>
@@ -1101,7 +1101,7 @@ onMounted(() => {
               </div>
             </div>
           </template>
-          <div class="h-48">
+          <div class="h-48 xl:h-52">
             <VChart :option="networkChartOption" autoresize />
           </div>
         </CardX>
@@ -1118,7 +1118,7 @@ onMounted(() => {
               </div>
             </div>
           </template>
-          <div class="h-48">
+          <div class="h-48 xl:h-52">
             <VChart :option="connectionsChartOption" autoresize />
           </div>
         </CardX>
@@ -1133,7 +1133,7 @@ onMounted(() => {
               </span>
             </div>
           </template>
-          <div class="h-48">
+          <div class="h-48 xl:h-52">
             <VChart :option="processChartOption" autoresize />
           </div>
         </CardX>

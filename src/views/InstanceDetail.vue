@@ -396,7 +396,7 @@ const trafficProgressStyle = computed(() => ({
         </CardX>
       </div>
 
-      <div class="px-4 gap-4 grid grid-cols-1 lg:grid-cols-2">
+      <div class="px-4 gap-4 grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-4">
         <CardX
           title="硬件信息" size="small"
           class="group h-full backdrop-blur-xl backdrop-saturate-150 bg-background/40 border-none hover:bg-background/60 transition-all rounded-lg ring-1 ring-foreground/[0.06] shadow-sm glass-hover-blur"

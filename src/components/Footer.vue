@@ -31,8 +31,8 @@ const showFiling = computed(() => showIcp.value || showPolice.value)
 
 <template>
   <footer
-    class="w-full flex flex-col gap-1.5 sm:flex-row sm:gap-4 sm:items-center sm:justify-between max-w-[1280px] mx-auto px-4 pt-4"
-    :class="appStore.visitorInfoCardEnabled ? 'pb-16 sm:pb-14' : 'pb-4'"
+    class="flex flex-col gap-1.5 sm:flex-row sm:gap-4 sm:items-center sm:justify-between px-4 pt-4 transition-[max-width] duration-200"
+    :class="[appStore.containerWidthClass, appStore.visitorInfoCardEnabled ? 'pb-16 sm:pb-14' : 'pb-4']"
   >
     <div class="flex flex-col gap-1 items-center text-xs text-muted-foreground sm:flex-1 sm:flex-row sm:justify-between">
       <div class="flex gap-1 items-center">

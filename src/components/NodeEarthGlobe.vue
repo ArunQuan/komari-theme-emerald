@@ -580,7 +580,7 @@ function formatRate(bytesPerSec: number): string {
 </script>
 
 <template>
-  <div ref="containerRef" class="relative aspect-square w-full max-w-md mx-auto -translate-y-6 md:-translate-y-12">
+  <div ref="containerRef" class="relative aspect-square w-full max-w-md xl:max-w-[460px] mx-auto -translate-y-6 md:-translate-y-12">
     <div class="earth-globe-halo absolute inset-0 pointer-events-none" aria-hidden="true" />
     <canvas
       ref="canvasRef"

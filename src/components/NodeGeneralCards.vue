@@ -255,10 +255,10 @@ const exchangeRateRows = computed(() => financeRateCurrencies.map((currency) => 
 }))
 const showEarth = computed(() => !appStore.hideEarth)
 const wrapperClass = computed(() => showEarth.value
-  ? 'p-4 grid grid-cols-12 grid-rows-1 gap-2 h-auto md:h-58'
+  ? 'p-4 grid grid-cols-12 grid-rows-1 gap-2 h-auto md:h-58 xl:h-62'
   : 'p-4 grid grid-cols-1 gap-2 h-auto')
 const cardGridClass = computed(() => showEarth.value
-  ? 'h-42 -mt-42 md:mt-0 col-span-12 row-start-3 z-9 md:h-auto md:col-span-6 md:row-start-1 grid grid-cols-12 grid-rows-2 gap-2'
+  ? 'h-42 -mt-42 md:mt-0 col-span-12 row-start-3 z-9 md:h-auto md:col-span-6 xl:col-span-7 md:row-start-1 grid grid-cols-12 grid-rows-2 gap-2'
   : 'col-span-1 grid grid-cols-3 md:grid-cols-6 gap-2')
 
 // 根据卡片索引和地球显示状态，返回 grid 位置 class
@@ -302,7 +302,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div :class="wrapperClass">
-    <NodeEarthGlobe v-if="showEarth" :nodes="globeNodes" class="col-span-12 col-start-1 md:col-span-6 md:col-start-7" />
+    <NodeEarthGlobe v-if="showEarth" :nodes="globeNodes" class="col-span-12 col-start-1 md:col-span-6 md:col-start-7 xl:col-span-5 xl:col-start-8" />
 
     <div :class="cardGridClass">
       <template v-for="(cardType, idx) in appStore.summaryCards" :key="cardType">

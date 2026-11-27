@@ -145,7 +145,7 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Komari Mon
     class="transition-all duration-200 top-0 sticky z-30 border-b border-transparent"
     :class="isScrolled ? '!border-slate-500/15 bg-background/80 shadow-xs backdrop-blur-xl backdrop-saturate-150' : 'bg-transparent'"
   >
-    <div class="px-4 flex-between h-14 max-w-[1280px] mx-auto">
+    <div class="px-4 flex-between h-14 transition-[max-width] duration-200" :class="appStore.containerWidthClass">
       <div class="flex items-center gap-3 cursor-pointer" @click="router.push('/')">
         <Avatar class="size-8">
           <AvatarImage :src="siteFavicon" :alt="sitename" />

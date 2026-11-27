@@ -110,7 +110,7 @@ onUnmounted(() => {
     <Header />
     <ConnectionBanner />
     <main v-if="!appStore.loading" class="relative z-10 min-h-screen overflow-x-clip">
-      <div class="max-w-[1280px] mx-auto">
+      <div class="transition-[max-width] duration-200" :class="appStore.containerWidthClass">
         <RouterView v-slot="{ Component }">
           <Transition
             :css="!appStore.disablePageAnimation"

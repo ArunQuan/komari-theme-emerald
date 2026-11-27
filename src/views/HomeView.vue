@@ -171,6 +171,22 @@ const cardGridMinWidth = computed(() =>
   appStore.cardDensity === 'compact' ? Math.min(appStore.nodeCardMinWidth, 250) : appStore.nodeCardMinWidth,
 )
 
+const pageWidthIcon = computed(() => {
+  if (appStore.pageWidthMode === 'full')
+    return 'tabler:arrows-maximize'
+  if (appStore.pageWidthMode === 'standard')
+    return 'tabler:arrows-minimize'
+  return 'tabler:arrows-horizontal'
+})
+
+const pageWidthLabel = computed(() => {
+  if (appStore.pageWidthMode === 'full')
+    return '页面宽度：超宽铺满（点击切换）'
+  if (appStore.pageWidthMode === 'standard')
+    return '页面宽度：经典 1280px（点击切换）'
+  return '页面宽度：自适应宽屏（点击切换）'
+})
+
 const nodeList = computed(() => {
   let filtered = groupNodeList.value
   if (debouncedSearchText.value.trim()) {
@@ -259,6 +275,16 @@ function getNodeItemTransitionStyle(index: number): Record<string, string> {
                 @click="appStore.toggleCardDensity()"
               >
                 <Icon :icon="appStore.cardDensity === 'compact' ? 'tabler:baseline-density-small' : 'tabler:baseline-density-medium'" :width="14" :height="14" />
+              </Button>
+              <Button
+                variant="outline" size="icon"
+                :aria-label="pageWidthLabel"
+                :title="pageWidthLabel"
+                class="hidden lg:inline-flex w-8 h-8 border-none backdrop-blur-xl backdrop-saturate-150 bg-background/40 shadow-none hover:bg-background/60 rounded-lg ring-1 ring-foreground/[0.06]"
+                :class="[appStore.pageWidthMode !== 'standard' ? '!text-emerald-600 dark:!text-emerald-400 !bg-background' : '']"
+                @click="appStore.cyclePageWidthMode()"
+              >
+                <Icon :icon="pageWidthIcon" :width="14" :height="14" />
               </Button>
               <Button
                 variant="outline" size="icon" aria-label="搜索节点"
