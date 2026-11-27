@@ -655,7 +655,7 @@ function strokeCometFlyLine(
 function getFlowSpeedMultiplier(bytesPerSec: number): number {
   if (bytesPerSec <= 0)
     return 0
-  return Math.min(1.6, Math.max(0.45, Math.log10(bytesPerSec + 10) / 5.2))
+  return Math.min(1.25, Math.max(0.45, Math.log10(bytesPerSec + 10) / 5.6))
 }
 
 function drawArcOverlay(nowMs: number) {
@@ -739,7 +739,7 @@ function drawArcOverlay(nowMs: number) {
       const speed = getFlowSpeedMultiplier(totalRate)
       const direction: 1 | -1 = arc.down >= arc.up ? 1 : -1
       const cycleLen = 1.62
-      const headProgress = (timeSec * 0.42 * speed + arc.phaseOffset) % cycleLen
+      const headProgress = (timeSec * 0.24 * speed + arc.phaseOffset) % cycleLen
 
       const coreColor = arc.status === 'partial'
         ? (u: number, alpha: number) => lerpRgb(redTail, redHead, u, alpha)
