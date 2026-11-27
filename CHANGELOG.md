@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.3.8 - 2026-11-28
+
+### Changed
+
+- Consolidated the 3-carrier Ping/loss panels in `NodeCard` into a single container, added expiration warning pill colors, dynamic traffic status bars, unified offline blur, and keyboard focus support.
+- Fixed the memory summary card icon (`tabler:cpu-2`), replaced invalid `text-md` with `text-lg` + `tabular-nums`, and teleported the finance/exchange-rate popup with viewport clamping and outside-click/`Escape` dismissal.
+- Clamped `PingBars` edge tooltips, added 3-state sort cycling (asc → desc → default), and prevented desktop search expansion from overlapping toolbar buttons while adding a dedicated mobile search bar.
+- Added `v4`/`v6` badges to `NodeList`, refined dark-mode `emerald`/`sky` semantic contrast, unified icons to `tabler:*`, raised sticky header contrast, and switched route transitions to a crisp blur-free animation.
+- Replaced empty finance cards on free/unpriced nodes in `InstanceDetail` with live CPU/RAM/Disk/Uptime metric cards, enabled `confine: true` and aligned tooltips in `LoadChart` and `PingChart`, and cleared mobile footer/`BackTop`/`VisitorInfoCard` overlap.
+
+### Engineering
+
+- Split local preview and ZIP packaging into build plugins; fail on missing release inputs.
+- Preserve Ping results while scanning sorted history once per bucket pass.
+- Remove three unused development dependencies and commit a frozen Bun lockfile.
+- Pin Bun 1.4.4 and patched build-tool transitive dependencies; add read-only lint and build CI.
+- Default the development server to loopback and skip release installs when the version is unchanged.
+
 ## v0.3.3 - 2026-09-23
 
 ### Changed
