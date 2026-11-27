@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.11 - 2026-11-28
+
+### Changed
+
+- Slowed down `NodeEarthGlobe` comet fly-line travel speed (base velocity `0.42` → `0.24`, speed multiplier cap `1.6` → `1.25`, log divisor `5.2` → `5.6`) for calmer, more readable traffic flow motion.
+
 ## v0.3.10 - 2026-11-28
 
 ### Changed
