@@ -26,6 +26,7 @@ const displayNodes = computed(() => props.nodes ?? nodesStore.nodes)
 
 const containerRef = ref<HTMLDivElement>()
 const canvasRef = ref<HTMLCanvasElement>()
+const arcCanvasRef = ref<HTMLCanvasElement>()
 const { width: containerWidth, height: containerHeight } = useElementSize(containerRef)
 
 const documentVisibility = useDocumentVisibility()
@@ -33,6 +34,9 @@ const elementVisible = useElementVisibility(containerRef)
 const shouldRender = computed(() => documentVisibility.value === 'visible' && elementVisible.value)
 // low 档强制静止（可拖拽）：不自转时 RAF 空转即跳帧，WebGL 成本归零
 const shouldAutoRotate = computed(() => !appStore.stopEarth && perfTier.value !== 'low')
+const useFlowingArcOverlay = computed(() => perfTier.value !== 'low')
+const prefersReducedMotion = typeof window !== 'undefined'
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 let globe: Globe | null = null
 const INITIAL_THETA = 0.22
@@ -309,28 +313,6 @@ function syncAnchorRefs() {
   anchorRefs.value = next
 }
 
-const markers = computed<Marker[]>(() => {
-  return regionClusters.value.map(cluster => ({
-    id: markerId(cluster.code),
-    location: cluster.coord,
-    size: 0.05, // 小圆点锚定旗帜牌的落点
-  }))
-})
-
-// 以服务器数最多的地区为中心，向其余地区连线，形成 CDN 拓扑
-const arcs = computed<Arc[]>(() => {
-  const clusters = regionClusters.value
-  if (clusters.length < 2)
-    return []
-  const hub = clusters[0]
-  if (!hub)
-    return []
-  return clusters.slice(1).map(cluster => ({
-    from: hub.coord,
-    to: cluster.coord,
-  }))
-})
-
 const themeColors = computed(() => {
   if (appStore.isDark) {
     return {
@@ -339,7 +321,9 @@ const themeColors = computed(() => {
       baseColor: [0.12, 0.16, 0.3] as [number, number, number],
       markerColor: [0.4, 0.75, 1.0] as [number, number, number],
       glowColor: [0.05, 0.08, 0.2] as [number, number, number],
-      arcColor: [0.4, 0.7, 1.0] as [number, number, number],
+      arcColor: [0.78, 0.92, 1.0] as [number, number, number],
+      offlineColor: [0.97, 0.35, 0.35] as [number, number, number],
+      partialColor: [0.97, 0.35, 0.35] as [number, number, number],
     }
   }
   return {
@@ -348,9 +332,441 @@ const themeColors = computed(() => {
     baseColor: [0.97, 0.97, 1] as [number, number, number],
     markerColor: [0.18, 0.45, 0.9] as [number, number, number],
     glowColor: [0.9, 0.93, 1] as [number, number, number],
-    arcColor: [0.18, 0.45, 0.9] as [number, number, number],
+    arcColor: [0.06, 0.72, 0.51] as [number, number, number],
+    offlineColor: [0.92, 0.22, 0.22] as [number, number, number],
+    partialColor: [0.92, 0.22, 0.22] as [number, number, number],
   }
 })
+
+type RegionHealth = 'online' | 'partial' | 'offline'
+
+function getRegionHealth(cluster: RegionCluster): RegionHealth {
+  if (cluster.onlineServers === 0)
+    return 'offline'
+  if (cluster.onlineServers < cluster.servers)
+    return 'partial'
+  return 'online'
+}
+
+const markers = computed<Marker[]>(() => {
+  const colors = themeColors.value
+  return regionClusters.value.map((cluster) => {
+    const status = getRegionHealth(cluster)
+    const color = status === 'offline'
+      ? colors.offlineColor
+      : status === 'partial'
+        ? colors.partialColor
+        : colors.markerColor
+    return {
+      id: markerId(cluster.code),
+      location: cluster.coord,
+      size: status === 'offline' ? 0.065 : 0.05, // 离线圆点略放大便于识别
+      color,
+    }
+  })
+})
+
+interface ArcRenderItem {
+  code: string
+  from: [number, number]
+  to: [number, number]
+  status: RegionHealth
+  up: number
+  down: number
+  phaseOffset: number
+}
+
+// 以服务器数最多的地区为中心，向其余地区连线，形成 CDN 拓扑
+const topologyArcs = computed<ArcRenderItem[]>(() => {
+  const clusters = regionClusters.value
+  if (clusters.length < 2)
+    return []
+  const hub = clusters[0]
+  if (!hub)
+    return []
+  const hubOffline = hub.onlineServers === 0
+  return clusters.slice(1).map((cluster, index) => {
+    const targetHealth = getRegionHealth(cluster)
+    const status: RegionHealth = hubOffline || targetHealth === 'offline'
+      ? 'offline'
+      : targetHealth === 'partial'
+        ? 'partial'
+        : 'online'
+    const rate = regionRates.value.get(cluster.code) ?? { up: 0, down: 0 }
+    return {
+      code: cluster.code,
+      from: hub.coord,
+      to: cluster.coord,
+      status,
+      up: status === 'offline' ? 0 : rate.up,
+      down: status === 'offline' ? 0 : rate.down,
+      phaseOffset: index * 0.27,
+    }
+  })
+})
+
+// low 档由 WebGL 原生绘制带状态色的静态弧线；中/高档交由 2D 叠加层绘制流光水柱动画
+const cobeArcs = computed<Arc[]>(() => {
+  if (useFlowingArcOverlay.value)
+    return []
+  const colors = themeColors.value
+  return topologyArcs.value.map(arc => ({
+    from: arc.from,
+    to: arc.to,
+    color: arc.status === 'offline'
+      ? colors.offlineColor
+      : arc.status === 'partial'
+        ? colors.partialColor
+        : colors.arcColor,
+  }))
+})
+
+// 与 cobe@2.0.1 完全一致的球面坐标与弧线投影公式
+const GLOBE_RADIUS = 0.8
+const ARC_HEIGHT = 0.4
+const MARKER_ELEVATION = 0
+const ARC_SAMPLE_STEPS = 48
+
+interface ProjectedPoint {
+  x: number
+  y: number
+  visible: boolean
+}
+
+function latLonToVec3([lat, lon]: [number, number]): [number, number, number] {
+  const latRad = (lat * Math.PI) / 180
+  const lonRad = (lon * Math.PI) / 180 - Math.PI
+  const cosLat = Math.cos(latRad)
+  return [-cosLat * Math.cos(lonRad), Math.sin(latRad), cosLat * Math.sin(lonRad)]
+}
+
+function sampleProjectedArc(
+  from: [number, number],
+  to: [number, number],
+  width: number,
+  height: number,
+): ProjectedPoint[] {
+  const fromUnit = latLonToVec3(from)
+  const toUnit = latLonToVec3(to)
+  const r = GLOBE_RADIUS + MARKER_ELEVATION
+  const start: [number, number, number] = [fromUnit[0] * r, fromUnit[1] * r, fromUnit[2] * r]
+  const end: [number, number, number] = [toUnit[0] * r, toUnit[1] * r, toUnit[2] * r]
+
+  const midSumX = fromUnit[0] + toUnit[0]
+  const midSumY = fromUnit[1] + toUnit[1]
+  const midSumZ = fromUnit[2] + toUnit[2]
+  const midLen = Math.hypot(midSumX, midSumY, midSumZ)
+  const midUnit: [number, number, number] = midLen > 1e-3
+    ? [midSumX / midLen, midSumY / midLen, midSumZ / midLen]
+    : [0, 1, 0]
+  const ctrlR = GLOBE_RADIUS + ARC_HEIGHT + MARKER_ELEVATION
+  const ctrl: [number, number, number] = [midUnit[0] * ctrlR, midUnit[1] * ctrlR, midUnit[2] * ctrlR]
+
+  const cosTheta = Math.cos(theta)
+  const sinTheta = Math.sin(theta)
+  const cosPhi = Math.cos(phi)
+  const sinPhi = Math.sin(phi)
+  const aspect = width / height
+
+  const points: ProjectedPoint[] = []
+  for (let i = 0; i <= ARC_SAMPLE_STEPS; i++) {
+    const t = i / ARC_SAMPLE_STEPS
+    const u = 1 - t
+    const bx = u * u * start[0] + 2 * u * t * ctrl[0] + t * t * end[0]
+    const by = u * u * start[1] + 2 * u * t * ctrl[1] + t * t * end[1]
+    const bz = u * u * start[2] + 2 * u * t * ctrl[2] + t * t * end[2]
+
+    const qx = cosPhi * bx + sinPhi * bz
+    const qy = sinPhi * sinTheta * bx + cosTheta * by - cosPhi * sinTheta * bz
+    const qz = -sinPhi * cosTheta * bx + sinTheta * by + cosPhi * cosTheta * bz
+
+    const visible = qz >= 0 || (qx * qx + qy * qy) >= 0.64
+    points.push({
+      x: ((qx / aspect) + 1) * 0.5 * width,
+      y: (1 - qy) * 0.5 * height,
+      visible,
+    })
+  }
+  return points
+}
+
+function getVisibleSegments(points: ProjectedPoint[]): Array<Array<{ x: number, y: number }>> {
+  const segments: Array<Array<{ x: number, y: number }>> = []
+  let current: Array<{ x: number, y: number }> = []
+  for (const pt of points) {
+    if (pt.visible) {
+      current.push({ x: pt.x, y: pt.y })
+    }
+    else if (current.length > 1) {
+      segments.push(current)
+      current = []
+    }
+    else {
+      current = []
+    }
+  }
+  if (current.length > 1)
+    segments.push(current)
+  return segments
+}
+
+function strokeSegments(ctx: CanvasRenderingContext2D, segments: Array<Array<{ x: number, y: number }>>) {
+  for (const seg of segments) {
+    const first = seg[0]
+    if (!first)
+      continue
+    ctx.beginPath()
+    ctx.moveTo(first.x, first.y)
+    for (let i = 1; i < seg.length; i++) {
+      const pt = seg[i]
+      if (pt)
+        ctx.lineTo(pt.x, pt.y)
+    }
+    ctx.stroke()
+  }
+}
+
+type RgbTuple = [number, number, number]
+
+function lerpRgb(from: RgbTuple, to: RgbTuple, t: number, alpha: number): string {
+  const clamped = Math.max(0, Math.min(1, t))
+  const r = Math.round(from[0] + (to[0] - from[0]) * clamped)
+  const g = Math.round(from[1] + (to[1] - from[1]) * clamped)
+  const b = Math.round(from[2] + (to[2] - from[2]) * clamped)
+  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`
+}
+
+function drawArrivalRipple(
+  ctx: CanvasRenderingContext2D,
+  point: ProjectedPoint | undefined,
+  progress: number,
+  color: (alpha: number) => string,
+) {
+  if (!point?.visible || progress < 0 || progress > 1)
+    return
+  const eased = 1 - (1 - progress) ** 2
+  const radius = 2.5 + eased * 11.5
+  const alpha = (1 - progress) * 0.75
+  if (alpha <= 0.02)
+    return
+
+  ctx.save()
+  ctx.strokeStyle = color(alpha)
+  ctx.lineWidth = 1.6 - progress * 0.6
+  ctx.setLineDash([])
+  ctx.beginPath()
+  ctx.arc(point.x, point.y, radius, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.restore()
+}
+
+function strokeCometFlyLine(
+  ctx: CanvasRenderingContext2D,
+  points: ProjectedPoint[],
+  headProgress: number,
+  tailLength: number,
+  direction: 1 | -1,
+  coreColor: (u: number, alpha: number) => string,
+  haloColor: (alpha: number) => string,
+  rippleColor: (alpha: number) => string,
+) {
+  const total = points.length - 1
+  if (total <= 0)
+    return
+
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.setLineDash([])
+
+  for (let i = 0; i < total; i++) {
+    const p0 = points[i]
+    const p1 = points[i + 1]
+    if (!p0?.visible || !p1?.visible)
+      continue
+
+    const segT = (i + 0.5) / total
+    const directedT = direction === 1 ? segT : 1 - segT
+    const distBehind = headProgress - directedT
+    if (distBehind < 0 || distBehind > tailLength)
+      continue
+
+    const u = 1 - distBehind / tailLength
+    const alpha = u ** 1.55
+    if (alpha < 0.02)
+      continue
+
+    // 外层冰蓝/红冷光晕
+    ctx.strokeStyle = haloColor(alpha * 0.42)
+    ctx.lineWidth = 2.2 + u * 3.0
+    ctx.beginPath()
+    ctx.moveTo(p0.x, p0.y)
+    ctx.lineTo(p1.x, p1.y)
+    ctx.stroke()
+
+    // 内层颜色渐变 + 渐粗飞线核心（尾淡头亮）
+    ctx.strokeStyle = coreColor(u, alpha)
+    ctx.lineWidth = 0.9 + u * 1.9
+    ctx.beginPath()
+    ctx.moveTo(p0.x, p0.y)
+    ctx.lineTo(p1.x, p1.y)
+    ctx.stroke()
+  }
+
+  // 双层飞线星点头部
+  if (headProgress >= 0 && headProgress <= 1) {
+    const headParam = direction === 1 ? headProgress : 1 - headProgress
+    const exactIdx = headParam * total
+    const i0 = Math.floor(exactIdx)
+    const i1 = Math.min(total, i0 + 1)
+    const p0 = points[i0]
+    const p1 = points[i1]
+    if (p0?.visible && p1?.visible) {
+      const frac = exactIdx - i0
+      const hx = p0.x + (p1.x - p0.x) * frac
+      const hy = p0.y + (p1.y - p0.y) * frac
+
+      const outerGlow = ctx.createRadialGradient(hx, hy, 0, hx, hy, 6.2)
+      outerGlow.addColorStop(0, coreColor(1, 0.95))
+      outerGlow.addColorStop(0.42, haloColor(0.55))
+      outerGlow.addColorStop(1, haloColor(0))
+      ctx.fillStyle = outerGlow
+      ctx.beginPath()
+      ctx.arc(hx, hy, 6.2, 0, Math.PI * 2)
+      ctx.fill()
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.98)'
+      ctx.beginPath()
+      ctx.arc(hx, hy, 1.8, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+
+  // 抵达终点落点波纹
+  if (headProgress >= 0.96 && headProgress <= 1.38) {
+    const arrivalPoint = direction === 1 ? points[total] : points[0]
+    const rippleProgress = (headProgress - 0.96) / 0.42
+    drawArrivalRipple(ctx, arrivalPoint, rippleProgress, rippleColor)
+  }
+
+  ctx.restore()
+}
+
+function getFlowSpeedMultiplier(bytesPerSec: number): number {
+  if (bytesPerSec <= 0)
+    return 0
+  return Math.min(1.6, Math.max(0.45, Math.log10(bytesPerSec + 10) / 5.2))
+}
+
+function drawArcOverlay(nowMs: number) {
+  const canvas = arcCanvasRef.value
+  if (!canvas)
+    return
+  const ctx = canvas.getContext('2d')
+  if (!ctx)
+    return
+
+  const { width, height } = getRenderSize()
+  if (width <= 0 || height <= 0)
+    return
+
+  const dpr = getCappedDpr()
+  const targetW = Math.round(width * dpr)
+  const targetH = Math.round(height * dpr)
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width = targetW
+    canvas.height = targetH
+  }
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, width, height)
+
+  if (!useFlowingArcOverlay.value || !topologyArcs.value.length)
+    return
+
+  const isDark = appStore.isDark
+  const timeSec = nowMs / 1000
+  const animate = !prefersReducedMotion
+
+  const lightEmeraldTail: RgbTuple = [5, 150, 105] // #059669
+  const lightEmeraldMid: RgbTuple = [52, 211, 153] // #34d399
+  const pureWhite: RgbTuple = [255, 255, 255]
+  const darkIceTail: RgbTuple = [224, 242, 254] // #e0f2fe
+  const redTail: RgbTuple = [239, 68, 68] // #ef4444
+  const redHead: RgbTuple = [255, 241, 242] // #fff1f2
+
+  for (const arc of topologyArcs.value) {
+    const pts = sampleProjectedArc(arc.from, arc.to, width, height)
+    const segments = getVisibleSegments(pts)
+    if (!segments.length)
+      continue
+
+    ctx.save()
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.setLineDash([])
+
+    if (arc.status === 'offline') {
+      // 离线：红色告警轨迹 + 呼吸脉冲，无飞线
+      const pulse = animate ? 0.5 + 0.38 * Math.sin(timeSec * 3.0 + arc.phaseOffset * Math.PI * 2) : 0.8
+      ctx.strokeStyle = isDark ? `rgba(248, 113, 113, ${pulse.toFixed(2)})` : `rgba(220, 38, 38, ${pulse.toFixed(2)})`
+      ctx.lineWidth = 1.6
+      strokeSegments(ctx, segments)
+      ctx.restore()
+      continue
+    }
+
+    // 1) 清晰细轨迹轨道
+    if (arc.status === 'partial') {
+      ctx.strokeStyle = isDark ? 'rgba(248, 113, 113, 0.44)' : 'rgba(220, 38, 38, 0.42)'
+      ctx.lineWidth = 1.45
+      strokeSegments(ctx, segments)
+    }
+    else if (isDark) {
+      ctx.strokeStyle = 'rgba(186, 230, 253, 0.24)'
+      ctx.lineWidth = 1.2
+      strokeSegments(ctx, segments)
+    }
+    else {
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.34)'
+      ctx.lineWidth = 1.35
+      strokeSegments(ctx, segments)
+    }
+
+    // 2) 有实时流量时：每条轨迹一次一条渐变飞线 + 抵达波纹
+    const totalRate = arc.up + arc.down
+    if (animate && totalRate > 0) {
+      const speed = getFlowSpeedMultiplier(totalRate)
+      const direction: 1 | -1 = arc.down >= arc.up ? 1 : -1
+      const cycleLen = 1.62
+      const headProgress = (timeSec * 0.42 * speed + arc.phaseOffset) % cycleLen
+
+      const coreColor = arc.status === 'partial'
+        ? (u: number, alpha: number) => lerpRgb(redTail, redHead, u, alpha)
+        : isDark
+          ? (u: number, alpha: number) => lerpRgb(darkIceTail, pureWhite, u, alpha)
+          : (u: number, alpha: number) => (u < 0.55
+              ? lerpRgb(lightEmeraldTail, lightEmeraldMid, u / 0.55, alpha)
+              : lerpRgb(lightEmeraldMid, pureWhite, (u - 0.55) / 0.45, alpha))
+
+      const haloColor = arc.status === 'partial'
+        ? (alpha: number) => (isDark ? `rgba(248, 113, 113, ${alpha.toFixed(3)})` : `rgba(220, 38, 38, ${alpha.toFixed(3)})`)
+        : isDark
+          ? (alpha: number) => `rgba(125, 211, 252, ${alpha.toFixed(3)})`
+          : (alpha: number) => `rgba(16, 185, 129, ${alpha.toFixed(3)})`
+
+      const rippleColor = arc.status === 'partial'
+        ? (alpha: number) => (isDark ? `rgba(248, 113, 113, ${alpha.toFixed(3)})` : `rgba(220, 38, 38, ${alpha.toFixed(3)})`)
+        : isDark
+          ? (alpha: number) => `rgba(186, 230, 253, ${alpha.toFixed(3)})`
+          : (alpha: number) => `rgba(16, 185, 129, ${alpha.toFixed(3)})`
+
+      strokeCometFlyLine(ctx, pts, headProgress, 0.44, direction, coreColor, haloColor, rippleColor)
+    }
+
+    ctx.restore()
+  }
+}
 
 function getRenderSize() {
   const width = containerWidth.value || canvasRef.value?.clientWidth || 320
@@ -375,15 +791,15 @@ function buildInitialOptions(): COBEOptions {
     markerColor: colors.markerColor,
     glowColor: colors.glowColor,
     markers: markers.value,
-    arcs: arcs.value,
+    arcs: cobeArcs.value,
     arcColor: colors.arcColor,
     arcWidth: 1,
-    arcHeight: 0.4,
-    markerElevation: 0,
+    arcHeight: ARC_HEIGHT,
+    markerElevation: MARKER_ELEVATION,
   }
 }
 
-function updateGlobeFrame(forceSyncAnchors = false) {
+function updateGlobeFrame(forceSyncAnchors = false, nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()) {
   if (!globe)
     return
   refreshContainerSizeCache()
@@ -392,9 +808,10 @@ function updateGlobeFrame(forceSyncAnchors = false) {
   if (forceSyncAnchors)
     syncAnchorRefs()
   flushDirtyAnchors()
+  drawArcOverlay(nowMs)
 }
 
-// phi 收敛/静止时整帧跳过 globe.update，WebGL + 锚点写入双双归零
+// phi 收敛/静止时跳过 globe.update，WebGL 写入归零；中/高档仍保持轻量 2D 水流动画
 const ORIENTATION_IDLE_EPSILON = 1e-5
 const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
   () => {
@@ -402,6 +819,7 @@ const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
       return
     const prevPhi = phi
     const prevTheta = theta
+    const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
 
     if (!isPointerDown && shouldAutoRotate.value)
       targetPhi += AUTO_ROTATE_STEP
@@ -424,11 +842,14 @@ const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
       && Math.abs(theta - prevTheta) < ORIENTATION_IDLE_EPSILON
     ) {
       if (!shouldAutoRotate.value && shouldKeepStaticRedraw()) {
-        updateGlobeFrame(true)
+        updateGlobeFrame(true, nowMs)
+      }
+      else if (useFlowingArcOverlay.value && !prefersReducedMotion) {
+        drawArcOverlay(nowMs)
       }
       return
     }
-    updateGlobeFrame()
+    updateGlobeFrame(false, nowMs)
   },
   { immediate: false, fpsLimit: GLOBE_FPS_LIMIT },
 )
@@ -477,11 +898,14 @@ watch(() => appStore.isDark, () => {
     markerColor: colors.markerColor,
     glowColor: colors.glowColor,
     arcColor: colors.arcColor,
+    markers: markers.value,
+    arcs: cobeArcs.value,
   })
   // 静止模式下需手动触发重绘
   if (!shouldAutoRotate.value) {
     triggerStaticRedrawWindow()
   }
+  drawArcOverlay(typeof performance !== 'undefined' ? performance.now() : Date.now())
 })
 
 watch(
@@ -505,19 +929,23 @@ watch(
   },
 )
 
-// 仅地区集合或在线状态变化时才推送 markers/arcs；速率推送不触发
+// 地区集合、在线状态或画质档位变化时推送 markers/arcs；速率推送仅刷新 2D 叠加层
 watch(
-  () => regionClusters.value.map(clusterKey).join(','),
+  [
+    () => regionClusters.value.map(clusterKey).join(','),
+    useFlowingArcOverlay,
+  ],
   () => {
     if (!globe)
       return
     refreshContainerSizeCache()
-    globe.update({ markers: markers.value, arcs: arcs.value })
+    globe.update({ markers: markers.value, arcs: cobeArcs.value })
     syncAnchorRefs()
     if (!shouldAutoRotate.value)
       triggerStaticRedrawWindow(600)
     // phi 静止时 RAF 跳帧会漏掉这次 flush，手动补一次
     flushDirtyAnchors()
+    drawArcOverlay(typeof performance !== 'undefined' ? performance.now() : Date.now())
   },
 )
 
@@ -587,11 +1015,17 @@ function formatRate(bytesPerSec: number): string {
       class="earth-globe-canvas absolute inset-0 w-full h-full select-none touch-none cursor-grab active:cursor-grabbing"
       @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp"
     />
+    <canvas
+      v-show="useFlowingArcOverlay"
+      ref="arcCanvasRef"
+      class="earth-globe-arcs absolute inset-0 z-1 w-full h-full pointer-events-none"
+      aria-hidden="true"
+    />
 
     <template v-for="cluster in regionClusters" :key="cluster.code">
       <Teleport v-if="getAnchorEl(cluster.code)" :to="getAnchorEl(cluster.code)!">
         <div
-          class="absolute -top-7.5 left-0 transition-[opacity,filter] duration-500 rounded-lg backdrop-blur-xl backdrop-saturate-150"
+          class="absolute -top-7.5 left-0 z-10 transition-[opacity,filter] duration-500 rounded-lg backdrop-blur-xl backdrop-saturate-150"
           :style="{
             opacity: `var(--cobe-visible-${markerId(cluster.code)}, 0)`,
             filter: `blur(calc((1 - var(--cobe-visible-${markerId(cluster.code)}, 0)) * 20px))`,

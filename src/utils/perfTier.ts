@@ -15,6 +15,13 @@ export type PerfTier = 'high' | 'medium' | 'low'
 
 const STORAGE_KEY = 'emerald-perf-tier-v1'
 
+function readPreviewTier(): PerfTier | null {
+  if (!import.meta.env.DEV || typeof window === 'undefined')
+    return null
+  const value = new URLSearchParams(window.location.search).get('previewPerfTier')
+  return value === 'high' || value === 'medium' || value === 'low' ? value : null
+}
+
 function readStoredTier(): PerfTier | null {
   try {
     const value = localStorage.getItem(STORAGE_KEY)
@@ -35,7 +42,7 @@ function defaultTier(): PerfTier {
   return window.innerWidth < 768 ? 'medium' : 'high'
 }
 
-export const perfTier = ref<PerfTier>(readStoredTier() ?? defaultTier())
+export const perfTier = ref<PerfTier>(readPreviewTier() ?? readStoredTier() ?? defaultTier())
 
 // 模块加载即同步根类，存档 low 的用户首帧就走降级样式
 if (typeof document !== 'undefined') {
@@ -81,6 +88,11 @@ function measureFps(durationMs: number): Promise<number> {
  * 已有存档则直接应用；否则跑 1 秒帧率探针，掉帧则降档并存档。
  */
 export async function initPerfTier(): Promise<void> {
+  const preview = readPreviewTier()
+  if (preview) {
+    applyTier(preview, false)
+    return
+  }
   const stored = readStoredTier()
   if (stored) {
     applyTier(stored, false)
