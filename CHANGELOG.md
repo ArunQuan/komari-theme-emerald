@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.12 - 2026-11-28
+
+### Fixed
+
+- Replaced stateless `timeSec * speed` fly-line phase calculation in `NodeEarthGlobe` with per-arc delta-time flight integration (`arcFlightStates`), preventing comet fly-lines from jumping, flipping direction mid-flight, or vanishing/flashing when live traffic rates refresh.
+
 ## v0.3.11 - 2026-11-28
 
 ### Changed

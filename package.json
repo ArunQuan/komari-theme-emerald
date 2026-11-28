@@ -1,7 +1,7 @@
 {
   "name": "komari-theme-emerald",
   "type": "module",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "packageManager": "bun@1.4.4",
   "author": {
     "name": "Tokinx",
