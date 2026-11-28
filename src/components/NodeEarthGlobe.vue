@@ -658,6 +658,23 @@ function getFlowSpeedMultiplier(bytesPerSec: number): number {
   return Math.min(1.25, Math.max(0.45, Math.log10(bytesPerSec + 10) / 5.6))
 }
 
+const FLY_LINE_CYCLE_LEN = 1.62
+const FLY_LINE_BASE_SPEED = 0.24
+const FLY_LINE_COAST_SPEED = 0.65
+
+interface ArcFlightState {
+  progress: number
+  direction: 1 | -1
+  active: boolean
+}
+
+const arcFlightStates = new Map<string, ArcFlightState>()
+let lastOverlayTimeMs: number | null = null
+
+function resetOverlayClock() {
+  lastOverlayTimeMs = null
+}
+
 function drawArcOverlay(nowMs: number) {
   const canvas = arcCanvasRef.value
   if (!canvas)
@@ -687,6 +704,16 @@ function drawArcOverlay(nowMs: number) {
   const isDark = appStore.isDark
   const timeSec = nowMs / 1000
   const animate = !prefersReducedMotion
+  const dtSec = lastOverlayTimeMs === null
+    ? 0
+    : Math.min(0.1, Math.max(0, (nowMs - lastOverlayTimeMs) / 1000))
+  lastOverlayTimeMs = nowMs
+
+  const activeCodes = new Set(topologyArcs.value.map(arc => arc.code))
+  for (const code of arcFlightStates.keys()) {
+    if (!activeCodes.has(code))
+      arcFlightStates.delete(code)
+  }
 
   const lightEmeraldTail: RgbTuple = [5, 150, 105] // #059669
   const lightEmeraldMid: RgbTuple = [52, 211, 153] // #34d399
@@ -707,6 +734,7 @@ function drawArcOverlay(nowMs: number) {
     ctx.setLineDash([])
 
     if (arc.status === 'offline') {
+      arcFlightStates.delete(arc.code)
       // 离线：红色告警轨迹 + 呼吸脉冲，无飞线
       const pulse = animate ? 0.5 + 0.38 * Math.sin(timeSec * 3.0 + arc.phaseOffset * Math.PI * 2) : 0.8
       ctx.strokeStyle = isDark ? `rgba(248, 113, 113, ${pulse.toFixed(2)})` : `rgba(220, 38, 38, ${pulse.toFixed(2)})`
@@ -733,35 +761,62 @@ function drawArcOverlay(nowMs: number) {
       strokeSegments(ctx, segments)
     }
 
-    // 2) 有实时流量时：每条轨迹一次一条渐变飞线 + 抵达波纹
+    // 2) 有实时流量时：基于帧间隔递增进度，避免实时网速波动导致飞线闪烁/瞬移
     const totalRate = arc.up + arc.down
-    if (animate && totalRate > 0) {
-      const speed = getFlowSpeedMultiplier(totalRate)
-      const direction: 1 | -1 = arc.down >= arc.up ? 1 : -1
-      const cycleLen = 1.62
-      const headProgress = (timeSec * 0.24 * speed + arc.phaseOffset) % cycleLen
+    let state = arcFlightStates.get(arc.code)
+    if (!state) {
+      state = {
+        progress: -arc.phaseOffset,
+        direction: arc.down >= arc.up ? 1 : -1,
+        active: totalRate > 0,
+      }
+      arcFlightStates.set(arc.code, state)
+    }
 
-      const coreColor = arc.status === 'partial'
-        ? (u: number, alpha: number) => lerpRgb(redTail, redHead, u, alpha)
-        : isDark
-          ? (u: number, alpha: number) => lerpRgb(darkIceTail, pureWhite, u, alpha)
-          : (u: number, alpha: number) => (u < 0.55
-              ? lerpRgb(lightEmeraldTail, lightEmeraldMid, u / 0.55, alpha)
-              : lerpRgb(lightEmeraldMid, pureWhite, (u - 0.55) / 0.45, alpha))
+    if (animate) {
+      if (state.active) {
+        const speed = totalRate > 0 ? getFlowSpeedMultiplier(totalRate) : FLY_LINE_COAST_SPEED
+        state.progress += dtSec * FLY_LINE_BASE_SPEED * speed
+        if (state.progress >= FLY_LINE_CYCLE_LEN) {
+          if (totalRate > 0) {
+            state.progress %= FLY_LINE_CYCLE_LEN
+            state.direction = arc.down >= arc.up ? 1 : -1
+          }
+          else {
+            state.progress = 0
+            state.active = false
+          }
+        }
+      }
+      else if (totalRate > 0) {
+        state.progress = 0
+        state.direction = arc.down >= arc.up ? 1 : -1
+        state.active = true
+      }
 
-      const haloColor = arc.status === 'partial'
-        ? (alpha: number) => (isDark ? `rgba(248, 113, 113, ${alpha.toFixed(3)})` : `rgba(220, 38, 38, ${alpha.toFixed(3)})`)
-        : isDark
-          ? (alpha: number) => `rgba(125, 211, 252, ${alpha.toFixed(3)})`
-          : (alpha: number) => `rgba(16, 185, 129, ${alpha.toFixed(3)})`
+      if (state.active) {
+        const coreColor = arc.status === 'partial'
+          ? (u: number, alpha: number) => lerpRgb(redTail, redHead, u, alpha)
+          : isDark
+            ? (u: number, alpha: number) => lerpRgb(darkIceTail, pureWhite, u, alpha)
+            : (u: number, alpha: number) => (u < 0.55
+                ? lerpRgb(lightEmeraldTail, lightEmeraldMid, u / 0.55, alpha)
+                : lerpRgb(lightEmeraldMid, pureWhite, (u - 0.55) / 0.45, alpha))
 
-      const rippleColor = arc.status === 'partial'
-        ? (alpha: number) => (isDark ? `rgba(248, 113, 113, ${alpha.toFixed(3)})` : `rgba(220, 38, 38, ${alpha.toFixed(3)})`)
-        : isDark
-          ? (alpha: number) => `rgba(186, 230, 253, ${alpha.toFixed(3)})`
-          : (alpha: number) => `rgba(16, 185, 129, ${alpha.toFixed(3)})`
+        const haloColor = arc.status === 'partial'
+          ? (alpha: number) => (isDark ? `rgba(248, 113, 113, ${alpha.toFixed(3)})` : `rgba(220, 38, 38, ${alpha.toFixed(3)})`)
+          : isDark
+            ? (alpha: number) => `rgba(125, 211, 252, ${alpha.toFixed(3)})`
+            : (alpha: number) => `rgba(16, 185, 129, ${alpha.toFixed(3)})`
 
-      strokeCometFlyLine(ctx, pts, headProgress, 0.44, direction, coreColor, haloColor, rippleColor)
+        const rippleColor = arc.status === 'partial'
+          ? (alpha: number) => (isDark ? `rgba(248, 113, 113, ${alpha.toFixed(3)})` : `rgba(220, 38, 38, ${alpha.toFixed(3)})`)
+          : isDark
+            ? (alpha: number) => `rgba(186, 230, 253, ${alpha.toFixed(3)})`
+            : (alpha: number) => `rgba(16, 185, 129, ${alpha.toFixed(3)})`
+
+        strokeCometFlyLine(ctx, pts, state.progress, 0.44, state.direction, coreColor, haloColor, rippleColor)
+      }
     }
 
     ctx.restore()
@@ -882,6 +937,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   pauseRaf()
+  resetOverlayClock()
+  arcFlightStates.clear()
   globe?.destroy()
   globe = null
 })
@@ -955,10 +1012,12 @@ watch(shouldRender, (visible) => {
   if (visible) {
     if (!shouldAutoRotate.value)
       triggerStaticRedrawWindow()
+    resetOverlayClock()
     resumeRaf()
   }
   else {
     pauseRaf()
+    resetOverlayClock()
   }
 })
 
